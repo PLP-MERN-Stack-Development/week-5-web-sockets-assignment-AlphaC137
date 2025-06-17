@@ -25,35 +25,44 @@ function Login() {
     // Navigate to chat
     navigate('/chat');
   };
-
   return (
-    <div className="flex justify-center items-center" style={{ height: '80vh' }}>
-      <div style={{ width: '100%', maxWidth: '400px' }}>
-        <h1 className="text-center mb-4">Socket.io Chat</h1>
+    <div className="login-page">
+      <div className="login-container">
+        <div className="login-logo">
+          <img src="/chat-icon.png" alt="Chat App Logo" />
+          <h1>Socket.io Chat</h1>
+        </div>
         
-        <div style={{ background: 'white', padding: '2rem', borderRadius: '0.5rem', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
-          <h2 className="mb-4">Login</h2>
+        <div className="login-card">
+          <h2>Welcome!</h2>
+          <p className="login-subtitle">Join the conversation with Socket.io real-time chat</p>
           
           <form onSubmit={handleSubmit}>
             {error && <div className="alert alert-danger">{error}</div>}
             
             <div className="form-group">
-              <label htmlFor="username">Username</label>
-              <input
-                type="text"
-                id="username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="form-control"
-                placeholder="Enter your username"
-                autoFocus
-              />
+              <label htmlFor="username">Choose a username</label>
+              <div className="input-with-icon">
+                <input
+                  type="text"
+                  id="username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="form-control"
+                  placeholder="Enter your username"
+                  autoFocus
+                />
+              </div>
             </div>
             
-            <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
+            <button type="submit" className="btn btn-primary login-button">
               Join Chat
             </button>
           </form>
+          
+          <p className="login-footer">
+            Real-time chat powered by Socket.io and React
+          </p>
         </div>
       </div>
     </div>
