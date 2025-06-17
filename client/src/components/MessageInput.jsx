@@ -51,19 +51,28 @@ function MessageInput({ onSendMessage, onTyping }) {
       }
     };
   }, [isTyping, onTyping]);
-
   return (
     <div className="message-input-container">
-      <form onSubmit={handleSubmit} className="flex gap-2">
-        <input
-          type="text"
-          value={message}
-          onChange={handleChange}
-          placeholder="Type your message..."
-          className="form-control"
-          autoFocus
-        />
-        <button type="submit" className="btn btn-primary">Send</button>
+      <form onSubmit={handleSubmit} className="message-form">
+        <div className="message-input-wrapper">
+          <input
+            type="text"
+            value={message}
+            onChange={handleChange}
+            placeholder="Type your message..."
+            className="form-control"
+            autoFocus
+          />
+          {isTyping && (
+            <div className="typing-badge">Typing...</div>
+          )}
+        </div>
+        <button type="submit" className="btn btn-primary" disabled={!message.trim()}>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+          </svg>
+          Send
+        </button>
       </form>
     </div>
   );
