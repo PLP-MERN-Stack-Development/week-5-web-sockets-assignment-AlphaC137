@@ -4,7 +4,20 @@ import { io } from 'socket.io-client';
 import { useEffect, useState } from 'react';
 
 // Socket.io connection URL
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+// Dynamically determine the backend URL for GitHub Codespaces
+const getServerUrl = () => {
+  // If we're in a GitHub Codespace environment
+  if (window.location.host.includes('.app.github.dev')) {
+    // Extract the codespace name and use port 5000 for backend
+    const codespaceHost = window.location.host.replace('5173', '5000');
+    return `https://${codespaceHost}`;
+  }
+  // Default for local development
+  return import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+};
+
+const SOCKET_URL = getServerUrl();
+console.log('Connecting to socket server at:', SOCKET_URL);
 
 // Create socket instance
 export const socket = io(SOCKET_URL, {
@@ -12,6 +25,7 @@ export const socket = io(SOCKET_URL, {
   reconnection: true,
   reconnectionAttempts: 5,
   reconnectionDelay: 1000,
+  withCredentials: true,
 });
 
 // Custom hook for using socket.io
@@ -21,6 +35,10 @@ export const useSocket = () => {
   const [messages, setMessages] = useState([]);
   const [users, setUsers] = useState([]);
   const [typingUsers, setTypingUsers] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [messageReactions, setMessageReactions] = useState({});
+  const [rooms, setRooms] = useState([]);
+  const [currentRoom, setCurrentRoom] = useState('general');
 
   // Connect to socket server
   const connect = (username) => {
@@ -36,8 +54,8 @@ export const useSocket = () => {
   };
 
   // Send a message
-  const sendMessage = (message) => {
-    socket.emit('send_message', { message });
+  const sendMessage = (message, roomId = currentRoom) => {
+    socket.emit('send_message', { message, roomId });
   };
 
   // Send a private message
@@ -48,6 +66,35 @@ export const useSocket = () => {
   // Set typing status
   const setTyping = (isTyping) => {
     socket.emit('typing', isTyping);
+  };
+  
+  // Add reaction to a message
+  const addReaction = (messageId, reaction) => {
+    socket.emit('add_reaction', { messageId, reaction });
+  };
+  
+  // Mark message as read
+  const markMessageRead = (messageId) => {
+    socket.emit('mark_read', { messageId });
+  };
+  
+  // Decrement unread count
+  const decrementUnreadCount = () => {
+    setUnreadCount((prev) => (prev > 0 ? prev - 1 : 0));
+  };
+  
+  // Join a room
+  const joinRoom = (roomId) => {
+    socket.emit('join_room', roomId);
+    setCurrentRoom(roomId);
+  };
+  
+  // Leave a room
+  const leaveRoom = (roomId) => {
+    if (roomId !== 'general') {
+      socket.emit('leave_room', roomId);
+      setCurrentRoom('general');
+    }
   };
 
   // Socket event listeners
@@ -108,6 +155,33 @@ export const useSocket = () => {
       setTypingUsers(users);
     };
 
+    // Handle message reactions
+    const onMessageReaction = ({ messageId, reactions }) => {
+      setMessageReactions(prev => ({
+        ...prev,
+        [messageId]: reactions
+      }));
+    };
+    
+    // Handle message read receipts
+    const onMessageRead = ({ messageId, readBy }) => {
+      setMessages(prev => 
+        prev.map(msg => 
+          msg.id === messageId ? { ...msg, readBy } : msg
+        )
+      );
+    };
+    
+    // Handle room list
+    const onRoomList = (roomList) => {
+      setRooms(roomList);
+    };
+    
+    // Handle room messages
+    const onRoomMessage = (message) => {
+      setMessages((prev) => [...prev, message]);
+    };
+    
     // Register event listeners
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
@@ -117,6 +191,10 @@ export const useSocket = () => {
     socket.on('user_joined', onUserJoined);
     socket.on('user_left', onUserLeft);
     socket.on('typing_users', onTypingUsers);
+    socket.on('message_reaction', onMessageReaction);
+    socket.on('message_read', onMessageRead);
+    socket.on('room_list', onRoomList);
+    socket.on('room_message', onRoomMessage);
 
     // Clean up event listeners
     return () => {
@@ -128,6 +206,10 @@ export const useSocket = () => {
       socket.off('user_joined', onUserJoined);
       socket.off('user_left', onUserLeft);
       socket.off('typing_users', onTypingUsers);
+      socket.off('message_reaction', onMessageReaction);
+      socket.off('message_read', onMessageRead);
+      socket.off('room_list', onRoomList);
+      socket.off('room_message', onRoomMessage);
     };
   }, []);
 
@@ -138,11 +220,20 @@ export const useSocket = () => {
     messages,
     users,
     typingUsers,
+    unreadCount,
+    messageReactions,
+    rooms,
+    currentRoom,
     connect,
     disconnect,
     sendMessage,
     sendPrivateMessage,
     setTyping,
+    addReaction,
+    markMessageRead,
+    decrementUnreadCount,
+    joinRoom,
+    leaveRoom,
   };
 };
 
