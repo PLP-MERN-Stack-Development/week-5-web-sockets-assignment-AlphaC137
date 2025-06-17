@@ -37,7 +37,7 @@ This is a real-time chat application built with Socket.io, React, and Node.js th
 
 1. Clone the repository:
 ```
-git clone <repository-url>
+git clone https://github.com/PLP-MERN-Stack-Development/week-5-web-sockets-assignment-AlphaC137.git
 ```
 
 2. Install server dependencies:
