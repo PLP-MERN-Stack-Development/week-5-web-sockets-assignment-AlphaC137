@@ -15,7 +15,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: '*', // Allow all origins for Codespaces testing
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -30,6 +30,12 @@ app.use(express.static(path.join(__dirname, 'public')));
 const users = {};
 const messages = [];
 const typingUsers = {};
+const messageReactions = {};
+const rooms = {
+  'general': { name: 'General', description: 'Main chat room for everyone' },
+  'tech': { name: 'Technology', description: 'Discuss the latest tech news and trends' },
+  'random': { name: 'Random', description: 'Random discussions about anything' }
+};
 
 // Socket.io connection handler
 io.on('connection', (socket) => {
@@ -37,30 +43,97 @@ io.on('connection', (socket) => {
 
   // Handle user joining
   socket.on('user_join', (username) => {
-    users[socket.id] = { username, id: socket.id };
+    users[socket.id] = { username, id: socket.id, rooms: ['general'] };
+    
+    // Auto-join the general room
+    socket.join('general');
+    
     io.emit('user_list', Object.values(users));
     io.emit('user_joined', { username, id: socket.id });
+    
+    // Send available rooms to the user
+    socket.emit('room_list', Object.entries(rooms).map(([id, room]) => ({
+      id,
+      name: room.name,
+      description: room.description
+    })));
+    
     console.log(`${username} joined the chat`);
+  });
+  
+  // Handle room joining
+  socket.on('join_room', (roomId) => {
+    if (rooms[roomId] && users[socket.id]) {
+      // Join the socket.io room
+      socket.join(roomId);
+      
+      // Update user's room list if not already in it
+      if (!users[socket.id].rooms.includes(roomId)) {
+        users[socket.id].rooms.push(roomId);
+      }
+      
+      // Notify room that user joined
+      io.to(roomId).emit('room_message', {
+        id: Date.now(),
+        room: roomId,
+        message: `${users[socket.id].username} joined the room`,
+        system: true,
+        timestamp: new Date().toISOString(),
+      });
+      
+      console.log(`${users[socket.id].username} joined room: ${roomId}`);
+    }
+  });
+  
+  // Handle room leaving
+  socket.on('leave_room', (roomId) => {
+    if (roomId !== 'general' && users[socket.id]) {
+      // Leave the socket.io room
+      socket.leave(roomId);
+      
+      // Update user's room list
+      users[socket.id].rooms = users[socket.id].rooms.filter(r => r !== roomId);
+      
+      // Notify room that user left
+      io.to(roomId).emit('room_message', {
+        id: Date.now(),
+        room: roomId,
+        message: `${users[socket.id].username} left the room`,
+        system: true,
+        timestamp: new Date().toISOString(),
+      });
+      
+      console.log(`${users[socket.id].username} left room: ${roomId}`);
+    }
   });
 
   // Handle chat messages
   socket.on('send_message', (messageData) => {
-    const message = {
-      ...messageData,
+    const { message, roomId } = messageData;
+    
+    const messageObj = {
       id: Date.now(),
       sender: users[socket.id]?.username || 'Anonymous',
       senderId: socket.id,
+      message,
       timestamp: new Date().toISOString(),
+      room: roomId || 'general',
     };
     
-    messages.push(message);
+    messages.push(messageObj);
     
     // Limit stored messages to prevent memory issues
     if (messages.length > 100) {
       messages.shift();
     }
     
-    io.emit('receive_message', message);
+    if (roomId) {
+      // Send to specific room
+      io.to(roomId).emit('receive_message', messageObj);
+    } else {
+      // Send to all (global)
+      io.emit('receive_message', messageObj);
+    }
   });
 
   // Handle typing indicator
@@ -77,6 +150,54 @@ io.on('connection', (socket) => {
       io.emit('typing_users', Object.values(typingUsers));
     }
   });
+  
+  // Handle message reactions
+  socket.on('add_reaction', ({ messageId, reaction }) => {
+    if (!messageReactions[messageId]) {
+      messageReactions[messageId] = [];
+    }
+    
+    // Store who reacted with what
+    const reactionData = {
+      userId: socket.id,
+      username: users[socket.id]?.username || 'Anonymous',
+      reaction,
+      timestamp: new Date().toISOString(),
+    };
+    
+    messageReactions[messageId].push(reactionData);
+    
+    // Broadcast the reaction to all clients
+    io.emit('message_reaction', {
+      messageId,
+      reactions: messageReactions[messageId],
+    });
+  });
+  
+  // Handle read receipts
+  socket.on('mark_read', ({ messageId }) => {
+    // Find the message in our messages array
+    const message = messages.find(msg => msg.id === messageId);
+    
+    if (message) {
+      if (!message.readBy) {
+        message.readBy = [];
+      }
+      
+      // Add user to readBy if not already there
+      if (!message.readBy.includes(socket.id)) {
+        message.readBy.push(socket.id);
+        
+        // Notify sender that message was read
+        if (message.senderId !== socket.id) {
+          io.to(message.senderId).emit('message_read', {
+            messageId,
+            readBy: message.readBy,
+          });
+        }
+      }
+    }
+  });
 
   // Handle private messages
   socket.on('private_message', ({ to, message }) => {
@@ -84,6 +205,7 @@ io.on('connection', (socket) => {
       id: Date.now(),
       sender: users[socket.id]?.username || 'Anonymous',
       senderId: socket.id,
+      receiverId: to,
       message,
       timestamp: new Date().toISOString(),
       isPrivate: true,
