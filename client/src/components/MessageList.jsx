@@ -65,14 +65,15 @@ function MessageList({ messages, typingUsers }) {
                   </span>
                 ))}
               </div>
-              
-              {/* Reaction buttons */}
+                {/* Reaction buttons */}
               {!message.system && (
                 <div className="reaction-buttons">
-                  <button onClick={() => addReaction(message.id, '👍')} className="reaction-button">👍</button>
-                  <button onClick={() => addReaction(message.id, '❤️')} className="reaction-button">❤️</button>
-                  <button onClick={() => addReaction(message.id, '😄')} className="reaction-button">😄</button>
-                  <button onClick={() => addReaction(message.id, '🎉')} className="reaction-button">🎉</button>
+                  <button onClick={() => addReaction(message.id, '👍')} className="reaction-button" title="Like">👍</button>
+                  <button onClick={() => addReaction(message.id, '❤️')} className="reaction-button" title="Love">❤️</button>
+                  <button onClick={() => addReaction(message.id, '😄')} className="reaction-button" title="Smile">😄</button>
+                  <button onClick={() => addReaction(message.id, '🎉')} className="reaction-button" title="Celebrate">🎉</button>
+                  <button onClick={() => addReaction(message.id, '👏')} className="reaction-button" title="Clap">👏</button>
+                  <button onClick={() => addReaction(message.id, '🔥')} className="reaction-button" title="Fire">🔥</button>
                 </div>
               )}
             </div>
