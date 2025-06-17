@@ -11,8 +11,7 @@ const getServerUrl = () => {
     // Extract the codespace name and use port 5000 for backend
     const codespaceHost = window.location.host.replace('5173', '5000');
     return `https://${codespaceHost}`;
-  }
-  // Default for local development
+  }  // Default for local development
   return import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
 };
 
