@@ -20,6 +20,9 @@ This is a real-time chat application built with Socket.io, React, and Node.js th
 - Message reactions (like, love, smile, celebrate)
 - Read receipts for messages
 - Room-based conversations
+- File and image sharing
+- Message search functionality
+- Message pagination for loading older messages
 
 ### Real-Time Notifications
 - Browser notifications for new messages
@@ -93,11 +96,27 @@ The client provides a user interface for:
 - Notifications
 
 ## Screenshots
-(Screenshots would be included here in a real submission)
+
+![Login Screen](./screenshots/login-screen.png)
+*Login screen with username authentication**
+
+![Chat Interface](./screenshots/chat-interface.png)
+*Main chat interface showing messages, user list, and rooms*
+
+![Private Messaging](./screenshots/private-messaging.png)
+*Private messaging between users*
+
+![Message Reactions](./screenshots/message-reactions.png)
+*Message reactions feature with emoji options*
+
+![Notifications](./screenshots/notifications.png)
+*Real-time notifications when receiving new messages*
+
+**Note to submit:** Please take screenshots of each of these features and save them in the screenshots folder with the filenames mentioned above.
 
 ## Future Improvements
 - Enhanced user authentication with JWT
-- Message search functionality
+- Advanced search filters with date ranges and message types
 - Message pagination for loading older messages
 - File and image sharing
 - User profiles with avatars
