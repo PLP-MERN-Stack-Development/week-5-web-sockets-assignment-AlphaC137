@@ -25,17 +25,15 @@ function Login() {
     // Navigate to chat
     navigate('/chat');
   };
-  return (
-    <div className="login-page">
+  return (    <div className="login-page">
       <div className="login-container">
         <div className="login-logo">
-          <img src="/chat-icon.png" alt="Chat App Logo" />
+          <img src="/icon.png" alt="Chat App Logo" />
           <h1>Socket.io Chat</h1>
         </div>
-        
-        <div className="login-card">
-          <h2>Welcome!</h2>
-          <p className="login-subtitle">Join the conversation with Socket.io real-time chat</p>
+          <div className="login-card">
+          <h2>Welcome to Chat!</h2>
+          <p className="login-subtitle">Join the conversation with our beautiful real-time chat application</p>
           
           <form onSubmit={handleSubmit}>
             {error && <div className="alert alert-danger">{error}</div>}
