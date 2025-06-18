@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSocketContext } from '../context/SocketContext';
 import { useAuth } from '../context/AuthContext';
 import ChatHeader from '../components/ChatHeader';
@@ -6,6 +6,7 @@ import MessageList from '../components/MessageList';
 import MessageInput from '../components/MessageInput';
 import UserList from '../components/UserList';
 import RoomList from '../components/RoomList';
+import SearchMessages from '../components/SearchMessages';
 
 function Chat() {
   const { user } = useAuth();
@@ -22,6 +23,25 @@ function Chat() {
   
   const [selectedUser, setSelectedUser] = useState(null);
   const [notification, setNotification] = useState(null);
+  const [showSearch, setShowSearch] = useState(false);
+  const messagesEndRef = useRef(null);
+  
+  // Handle search result click to scroll to message
+  const handleSearchResultClick = (message) => {
+    // Find the DOM element with the message ID
+    const messageElement = document.querySelector(`[data-message-id="${message.id}"]`);
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      messageElement.classList.add('message-highlight');
+      
+      // Remove highlight after animation completes
+      setTimeout(() => {
+        messageElement.classList.remove('message-highlight');
+      }, 3000);
+    }
+    
+    setShowSearch(false);
+  };
 
   // Handle notification for new messages
   useEffect(() => {
@@ -98,8 +118,7 @@ function Chat() {
     : messages.filter(msg => 
         (!msg.isPrivate || msg.system) && 
         (msg.room === currentRoom || !msg.room || msg.system)
-      );
-  return (
+      );  return (
     <div className="chat-container">
       {notification && (
         <div className="notification">
@@ -112,13 +131,32 @@ function Chat() {
             <div className="notification-title">New message from <strong>{notification.sender}</strong></div>
             <div className="notification-message">{notification.message}</div>
           </div>
-          <button className="notification-close">×</button>
+          <button className="notification-close" onClick={() => setNotification(null)}>×</button>
         </div>
       )}
 
-      <ChatHeader selectedUser={selectedUser} currentRoom={currentRoom} />
+      <ChatHeader 
+        selectedUser={selectedUser} 
+        currentRoom={currentRoom} 
+        onToggleSearch={() => setShowSearch(!showSearch)}
+      />
       
       <div className="chat-main">
+        {showSearch && (
+          <div className="search-overlay">
+            <div className="search-container">
+              <div className="search-header">
+                <h3>Search Messages</h3>
+                <button className="close-search" onClick={() => setShowSearch(false)}>×</button>
+              </div>
+              <SearchMessages 
+                messages={messages} 
+                onResultClick={handleSearchResultClick}
+              />
+            </div>
+          </div>
+        )}
+        
         <div className="chat-sidebar">
           {/* Online users section */}
           <section className="sidebar-section">
@@ -154,6 +192,8 @@ function Chat() {
             onSendMessage={handleSendMessage} 
             onTyping={handleTyping}
           />
+          
+          {/* Search messages component - hidden by default */}
           
           {!isConnected && (
             <div className="connection-status">
