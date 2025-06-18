@@ -2,32 +2,65 @@ import { useState, useEffect, useRef } from 'react';
 
 function MessageInput({ onSendMessage, onTyping }) {
   const [message, setMessage] = useState('');
+  const [typingTimeout, setTypingTimeout] = useState(null);
   const [isTyping, setIsTyping] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showFileUpload, setShowFileUpload] = useState(false);
+  const [file, setFile] = useState(null);
+  const [filePreview, setFilePreview] = useState(null);
   const typingTimeoutRef = useRef(null);
   const inputRef = useRef(null);
   const emojiPickerRef = useRef(null);
-  
+  const fileInputRef = useRef();
+
   // Common emojis for quick access
   const commonEmojis = ['😊', '😂', '👍', '❤️', '🎉', '🔥', '👋', '🙏', '😎', '🤔', '😢', '😍', '👏', '✅', '⭐'];
   
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (message.trim() !== '') {
-      onSendMessage(message);
+    
+    const trimmedMessage = message.trim();
+    
+    if (!trimmedMessage && !file) return;
+    
+    // Handle file upload
+    if (file) {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      
+      reader.onload = () => {
+        const fileMessage = {
+          text: trimmedMessage || `Shared a file: ${file.name}`,
+          attachment: {
+            name: file.name,
+            type: file.type,
+            data: reader.result,
+            size: file.size
+          }
+        };
+        
+        onSendMessage(fileMessage);
+        setMessage('');
+        setFile(null);
+        setFilePreview(null);
+        setShowFileUpload(false);
+      };
+    } else {
+      // Regular text message
+      onSendMessage(trimmedMessage);
       setMessage('');
-      // Stop typing indicator when message is sent
-      if (isTyping) {
-        setIsTyping(false);
-        onTyping(false);
-      }
-      // Focus back on input
-      inputRef.current?.focus();
+    }
+    
+    // Stop typing indicator
+    if (isTyping) {
+      onTyping(false);
+      setIsTyping(false);
     }
   };
 
   const handleChange = (e) => {
-    setMessage(e.target.value);
+    const value = e.target.value;
+    setMessage(value);
     
     // Handle typing indicator
     if (!isTyping) {
@@ -35,16 +68,17 @@ function MessageInput({ onSendMessage, onTyping }) {
       onTyping(true);
     }
     
-    // Clear previous timeout
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
+    // Reset typing timeout
+    if (typingTimeout) {
+      clearTimeout(typingTimeout);
     }
     
-    // Set new timeout to stop typing indicator after 2 seconds
-    typingTimeoutRef.current = setTimeout(() => {
-      setIsTyping(false);
+    const timeout = setTimeout(() => {
       onTyping(false);
+      setIsTyping(false);
     }, 2000);
+    
+    setTypingTimeout(timeout);
   };
   
   // Add emoji to message
@@ -53,6 +87,45 @@ function MessageInput({ onSendMessage, onTyping }) {
     inputRef.current?.focus();
   };
   
+  const handleFileChange = (e) => {
+    const selectedFile = e.target.files[0];
+    if (!selectedFile) return;
+    
+    // Check file size (limit to 5MB)
+    if (selectedFile.size > 5 * 1024 * 1024) {
+      alert('File size exceeds 5MB limit');
+      return;
+    }
+    
+    setFile(selectedFile);
+    
+    // Create preview for images
+    if (selectedFile.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setFilePreview(e.target.result);
+      };
+      reader.readAsDataURL(selectedFile);
+    }
+  };
+
+  const handleFileButtonClick = () => {
+    setShowFileUpload(!showFileUpload);
+    if (!showFileUpload) {
+      setTimeout(() => {
+        fileInputRef.current?.click();
+      }, 100);
+    }
+  };
+
+  const removeFile = () => {
+    setFile(null);
+    setFilePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   // Handle clicking outside emoji picker
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -70,19 +143,60 @@ function MessageInput({ onSendMessage, onTyping }) {
   // Clean up timeout on unmount
   useEffect(() => {
     return () => {
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
+      if (typingTimeout) {
+        clearTimeout(typingTimeout);
       }
-      // Make sure to turn off typing indicator when component unmounts
       if (isTyping) {
         onTyping(false);
       }
     };
-  }, [isTyping, onTyping]);
+  }, [typingTimeout, isTyping, onTyping]);
   
   return (
-    <div className="message-input-container">
-      <form onSubmit={handleSubmit} className="message-form">
+    <form className="message-input-container" onSubmit={handleSubmit}>
+      {filePreview && (
+        <div className="file-preview">
+          <img src={filePreview} alt="File preview" />
+          <button type="button" className="remove-file" onClick={removeFile}>
+            ×
+          </button>
+          <div className="file-name">{file?.name}</div>
+        </div>
+      )}
+      
+      {file && !filePreview && (
+        <div className="file-info">
+          <div className="file-icon">📄</div>
+          <div className="file-details">
+            <div className="file-name">{file.name}</div>
+            <div className="file-size">{(file.size / 1024).toFixed(1)} KB</div>
+          </div>
+          <button type="button" className="remove-file" onClick={removeFile}>
+            ×
+          </button>
+        </div>
+      )}
+      
+      <div className="message-input-wrapper">
+        <button 
+          type="button" 
+          className="file-button" 
+          onClick={handleFileButtonClick} 
+          title="Share a file or image"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/>
+          </svg>
+        </button>
+        
+        <input
+          ref={fileInputRef}
+          type="file"
+          style={{ display: 'none' }}
+          onChange={handleFileChange}
+          accept="image/*,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        />
+        
         <button 
           type="button" 
           className="btn btn-icon" 
@@ -91,16 +205,6 @@ function MessageInput({ onSendMessage, onTyping }) {
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5-6c.78 2.34 2.72 4 5 4s4.22-1.66 5-4H7zm7.5-5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5-1.5-.67-1.5-1.5.67-1.5 1.5-1.5zm-5 0c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5-1.5-.67-1.5-1.5.67-1.5 1.5-1.5z"/>
-          </svg>
-        </button>
-        
-        <button 
-          type="button" 
-          className="btn btn-icon" 
-          title="Attach file"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
-            <path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/>
           </svg>
         </button>
         
@@ -129,7 +233,7 @@ function MessageInput({ onSendMessage, onTyping }) {
         <button 
           type="submit" 
           className="btn btn-primary" 
-          disabled={!message.trim()}
+          disabled={!message.trim() && !file}
           title="Send message (Ctrl+Enter)"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
@@ -155,8 +259,14 @@ function MessageInput({ onSendMessage, onTyping }) {
             </div>
           </div>
         )}
-      </form>
-    </div>
+      </div>
+      
+      {isTyping && (
+        <div className="typing-indicator">
+          <span className="typing-badge">Typing...</span>
+        </div>
+      )}
+    </form>
   );
 }
 

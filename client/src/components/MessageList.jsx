@@ -5,13 +5,66 @@ import { useSocketContext } from '../context/SocketContext';
 
 function MessageList({ messages, typingUsers }) {
   const { user } = useAuth();
-  const { messageReactions, addReaction, markMessageRead } = useSocketContext();
+  const { messageReactions, addReaction, markMessageRead, loadOlderMessages } = useSocketContext();
   const messagesEndRef = useRef(null);
+  const messagesStartRef = useRef(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(null); // Message ID that has emoji picker open
+  const [isLoading, setIsLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+
+  // Observer for infinite scroll (load more messages when scrolling to top)
+  useEffect(() => {
+    const options = {
+      root: null,
+      rootMargin: '0px',
+      threshold: 0.1,
+    };
+
+    const observer = new IntersectionObserver(handleObserver, options);
+    if (messagesStartRef.current) {
+      observer.observe(messagesStartRef.current);
+    }
+
+    return () => {
+      if (messagesStartRef.current) {
+        observer.unobserve(messagesStartRef.current);
+      }
+    };
+  }, [messages]);
+
+  // Handle intersection observer events for infinite scrolling
+  const handleObserver = (entries) => {
+    const [entry] = entries;
+    if (entry.isIntersecting && !isLoading && hasMore) {
+      loadMoreMessages();
+    }
+  };
+
+  // Load more messages function
+  const loadMoreMessages = async () => {
+    if (isLoading || !hasMore) return;
+    
+    setIsLoading(true);
+    const nextPage = page + 1;
+    
+    try {
+      const hasMoreMessages = await loadOlderMessages(nextPage);
+      setPage(nextPage);
+      setHasMore(hasMoreMessages);
+    } catch (error) {
+      console.error('Error loading older messages:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Scroll to bottom when messages change and mark new messages as read
   useEffect(() => {
-    scrollToBottom();
+    // Only auto-scroll if we're not loading older messages
+    if (!isLoading) {
+      scrollToBottom();
+    }
     
     // Mark any new messages from others as read
     messages.forEach(message => {
@@ -19,7 +72,7 @@ function MessageList({ messages, typingUsers }) {
         markMessageRead(message.id);
       }
     });
-  }, [messages, user?.id, markMessageRead]);
+  }, [messages, user?.id, markMessageRead, isLoading]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -67,12 +120,27 @@ function MessageList({ messages, typingUsers }) {
 
   return (
     <div className="messages-container">
+      {/* Loading indicator and reference element for infinite scroll */}
+      <div ref={messagesStartRef} className="message-scroll-ref">
+        {isLoading && (
+          <div className="loading-spinner">
+            <div className="spinner"></div>
+            <span>Loading older messages...</span>
+          </div>
+        )}
+        {!isLoading && !hasMore && messages.length > 0 && (
+          <div className="no-more-messages">
+            No more messages to load
+          </div>
+        )}
+      </div>
+      
       {messages.map((message, index) => {
         const isPreviousFromSameSender = shouldGroupMessages(message, messages[index - 1]);
-        
-        return (
+          return (
           <div 
-            key={message.id} 
+            key={message.id}
+            data-message-id={message.id}
             className={`message ${message.system ? 'system-message' : 
               message.senderId === user?.id ? 'message-sent' : 'message-received'} 
               ${isPreviousFromSameSender ? 'message-grouped' : ''}`}
@@ -81,9 +149,34 @@ function MessageList({ messages, typingUsers }) {
               <div className="message-header">
                 {message.senderId !== user?.id && <span className="message-sender">{message.sender}</span>}
               </div>
-            )}
-            <div className="message-content" title={formatAbsoluteTime(message.timestamp)}>
-              {message.message}
+            )}            <div className="message-content" title={formatAbsoluteTime(message.timestamp)}>
+              {typeof message.message === 'object' && message.message.attachment ? (
+                <div className="message-attachment">
+                  {message.message.attachment.type.startsWith('image/') ? (
+                    <div className="image-attachment">
+                      <img 
+                        src={message.message.attachment.data} 
+                        alt={message.message.attachment.name} 
+                        onClick={() => window.open(message.message.attachment.data, '_blank')}
+                      />
+                      <div className="attachment-name">{message.message.attachment.name}</div>
+                    </div>
+                  ) : (
+                    <div className="file-attachment">
+                      <a href={message.message.attachment.data} download={message.message.attachment.name} target="_blank" rel="noreferrer">
+                        <div className="file-icon">📄</div>
+                        <div className="file-details">
+                          <div className="file-name">{message.message.attachment.name}</div>
+                          <div className="file-size">{(message.message.attachment.size / 1024).toFixed(1)} KB</div>
+                        </div>
+                      </a>
+                    </div>
+                  )}
+                  <div className="attachment-text">{message.message.text}</div>
+                </div>
+              ) : (
+                message.message
+              )}
             </div>
             {!message.system && (
               <div className="message-meta">
@@ -152,6 +245,13 @@ function MessageList({ messages, typingUsers }) {
       )}
       
       <div ref={messagesEndRef} />
+      
+      {/* Loader for pagination */}
+      {isLoading && (
+        <div className="loader">
+          Loading more messages...
+        </div>
+      )}
     </div>
   );
 }

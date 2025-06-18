@@ -1,7 +1,7 @@
 // socket.js - Socket.io client setup
 
 import { io } from 'socket.io-client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 
 // Socket.io connection URL
 // Dynamically determine the backend URL for GitHub Codespaces
@@ -16,6 +16,7 @@ const getServerUrl = () => {
 };
 
 const SOCKET_URL = getServerUrl();
+const API_URL = SOCKET_URL; // Using same base URL for API
 console.log('Connecting to socket server at:', SOCKET_URL);
 
 // Create socket instance
@@ -38,6 +39,7 @@ export const useSocket = () => {
   const [messageReactions, setMessageReactions] = useState({});
   const [rooms, setRooms] = useState([]);
   const [currentRoom, setCurrentRoom] = useState('general');
+  const [hasMoreMessages, setHasMoreMessages] = useState(true);
 
   // Connect to socket server
   const connect = (username) => {
@@ -46,6 +48,42 @@ export const useSocket = () => {
       socket.emit('user_join', username);
     }
   };
+
+  // Load older messages with pagination
+  const loadOlderMessages = useCallback(async (page = 1, roomId = currentRoom) => {
+    try {
+      const limit = 20; // Number of messages per page
+      const skip = (page - 1) * limit;
+      
+      const response = await fetch(`${API_URL}/api/messages?room=${roomId}&skip=${skip}&limit=${limit}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch older messages');
+      }
+      
+      const olderMessages = await response.json();
+      
+      if (olderMessages.length === 0) {
+        setHasMoreMessages(false);
+        return false;
+      }
+      
+      // Prepend older messages to the existing messages
+      setMessages(prevMessages => {
+        // Filter out duplicates based on message ID
+        const existingIds = new Set(prevMessages.map(msg => msg.id));
+        const uniqueOlderMessages = olderMessages.filter(msg => !existingIds.has(msg.id));
+        
+        // Return combined messages in chronological order
+        return [...uniqueOlderMessages, ...prevMessages];
+      });
+      
+      return olderMessages.length === limit; // If we got fewer than limit, we're at the end
+    } catch (error) {
+      console.error('Error loading older messages:', error);
+      return false;
+    }
+  }, [currentRoom]);
 
   // Disconnect from socket server
   const disconnect = () => {
@@ -211,7 +249,6 @@ export const useSocket = () => {
       socket.off('room_message', onRoomMessage);
     };
   }, []);
-
   return {
     socket,
     isConnected,
@@ -220,6 +257,7 @@ export const useSocket = () => {
     users,
     typingUsers,
     unreadCount,
+    loadOlderMessages,
     messageReactions,
     rooms,
     currentRoom,
@@ -233,7 +271,9 @@ export const useSocket = () => {
     decrementUnreadCount,
     joinRoom,
     leaveRoom,
+    loadOlderMessages,
+    hasMoreMessages,
   };
 };
 
-export default socket; 
+export default socket;

@@ -233,7 +233,28 @@ io.on('connection', (socket) => {
 
 // API routes
 app.get('/api/messages', (req, res) => {
-  res.json(messages);
+  try {
+    const { room, skip = 0, limit = 20 } = req.query;
+    let filteredMessages = [...messages];
+    
+    // Filter by room if specified
+    if (room && room !== 'general') {
+      filteredMessages = filteredMessages.filter(msg => msg.room === room);
+    }
+    
+    // Sort messages from oldest to newest
+    filteredMessages = filteredMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    
+    // Implement pagination
+    const startIndex = parseInt(skip);
+    const endIndex = startIndex + parseInt(limit);
+    const paginatedMessages = filteredMessages.slice(startIndex, endIndex);
+    
+    res.json(paginatedMessages);
+  } catch (error) {
+    console.error('Error getting messages:', error);
+    res.status(500).json({ error: 'Failed to retrieve messages' });
+  }
 });
 
 app.get('/api/users', (req, res) => {
