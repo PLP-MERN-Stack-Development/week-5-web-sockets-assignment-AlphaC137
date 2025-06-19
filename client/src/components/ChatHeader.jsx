@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useSocketContext } from '../context/SocketContext';
 
-function ChatHeader({ selectedUser, currentRoom }) {
+function ChatHeader({ selectedUser, currentRoom, onToggleSearch }) {
   const { user, logout } = useAuth();
   const { disconnect, users, rooms, isConnected } = useSocketContext();
   const [showDropdown, setShowDropdown] = useState(false);
@@ -84,10 +84,13 @@ function ChatHeader({ selectedUser, currentRoom }) {
         </svg>
       </button>
       
-      <div className={`chat-header-actions ${showMobileMenu ? 'show-mobile' : ''}`}>
-        <div className="header-action-buttons">
+      <div className={`chat-header-actions ${showMobileMenu ? 'show-mobile' : ''}`}>        <div className="header-action-buttons">
           {/* Search button */}
-          <button className="btn btn-icon" title="Search conversations">
+          <button 
+            className="btn btn-icon" 
+            title="Search conversations"
+            onClick={() => onToggleSearch && onToggleSearch()}
+          >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
               <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
             </svg>
