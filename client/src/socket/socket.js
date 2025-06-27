@@ -6,17 +6,32 @@ import { useEffect, useState, useCallback } from 'react';
 // Socket.io connection URL
 // Dynamically determine the backend URL for GitHub Codespaces
 const getServerUrl = () => {
+  console.log('Current window.location.host:', window.location.host);
+  console.log('Current window.location.href:', window.location.href);
+  
   // If we're in a GitHub Codespace environment
   if (window.location.host.includes('.app.github.dev')) {
-    // Extract the codespace name and use port 5000 for backend
-    const codespaceHost = window.location.host.replace('5173-', '5000-');
-    return `https://${codespaceHost}`;
+    // Replace the port number from 5173 to 5000
+    let codespaceHost = window.location.host;
+    if (codespaceHost.includes('-5173.')) {
+      codespaceHost = codespaceHost.replace('-5173.', '-5000.');
+    } else if (codespaceHost.includes('5173-')) {
+      codespaceHost = codespaceHost.replace('5173-', '5000-');
+    }
+    const serverUrl = `https://${codespaceHost}`;
+    console.log('Detected Codespaces environment, server URL:', serverUrl);
+    return serverUrl;
   }
   // If running locally, check if ports are directly accessible
   if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
     return 'http://localhost:5000';
   }
-  // Default for local development
+  // For other environments, try to construct from current host
+  if (window.location.port === '5173') {
+    const baseUrl = `${window.location.protocol}//${window.location.hostname}:5000`;
+    return baseUrl;
+  }
+  // Default fallback
   return import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
 };
 
@@ -62,10 +77,18 @@ export const useSocket = () => {
       const limit = 20; // Number of messages per page
       const skip = (page - 1) * limit;
       
-      const response = await fetch(`${API_URL}/api/messages?room=${roomId}&skip=${skip}&limit=${limit}`);
+      const apiUrl = `${API_URL}/api/messages?room=${roomId}&skip=${skip}&limit=${limit}`;
+      console.log('Fetching older messages from:', apiUrl);
+      
+      const response = await fetch(apiUrl);
+      
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
       
       if (!response.ok) {
-        throw new Error('Failed to fetch older messages');
+        const responseText = await response.text();
+        console.log('Error response body:', responseText);
+        throw new Error(`Failed to fetch older messages: ${response.status} - ${responseText.substring(0, 100)}`);
       }
       
       const olderMessages = await response.json();
