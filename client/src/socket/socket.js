@@ -9,15 +9,22 @@ const getServerUrl = () => {
   // If we're in a GitHub Codespace environment
   if (window.location.host.includes('.app.github.dev')) {
     // Extract the codespace name and use port 5000 for backend
-    const codespaceHost = window.location.host.replace('5173', '5000');
+    const codespaceHost = window.location.host.replace('5173-', '5000-');
     return `https://${codespaceHost}`;
-  }  // Default for local development
+  }
+  // If running locally, check if ports are directly accessible
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return 'http://localhost:5000';
+  }
+  // Default for local development
   return import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
 };
 
 const SOCKET_URL = getServerUrl();
 const API_URL = SOCKET_URL; // Using same base URL for API
+console.log('Current window.location.host:', window.location.host);
 console.log('Connecting to socket server at:', SOCKET_URL);
+console.log('API URL:', API_URL);
 
 // Create socket instance
 export const socket = io(SOCKET_URL, {
@@ -257,7 +264,6 @@ export const useSocket = () => {
     users,
     typingUsers,
     unreadCount,
-    loadOlderMessages,
     messageReactions,
     rooms,
     currentRoom,
