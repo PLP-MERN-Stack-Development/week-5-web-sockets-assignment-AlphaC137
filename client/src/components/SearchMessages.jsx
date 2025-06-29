@@ -1,113 +1,115 @@
-import { useState } from 'react';
-import './SearchMessages.css';
+import React, { useState } from 'react';
+import { useChat } from '../context/ChatContext';
+import { Search, X } from 'lucide-react';
 
-function SearchMessages({ messages, onResultClick }) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
+function SearchMessages() {
+  const { searchQuery, dispatch } = useChat();
+  const [isExpanded, setIsExpanded] = useState(false);
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      return;
-    }
-    
-    setIsSearching(true);
-    
-    // Search through messages
-    const query = searchQuery.toLowerCase();
-    const results = messages.filter(message => {
-      // Skip system messages
-      if (message.system) return false;
-      
-      // Search in message content
-      if (typeof message.message === 'string') {
-        return message.message.toLowerCase().includes(query);
-      }
-      
-      // Search in file attachments and text
-      if (message.message && typeof message.message === 'object') {
-        const hasTextMatch = message.message.text && message.message.text.toLowerCase().includes(query);
-        const hasFileNameMatch = message.message.attachment && 
-          message.message.attachment.name && 
-          message.message.attachment.name.toLowerCase().includes(query);
-          
-        return hasTextMatch || hasFileNameMatch;
-      }
-      
-      return false;
-    });
-    
-    setSearchResults(results);
-    setIsSearching(false);
+  const handleSearch = (query) => {
+    dispatch({ type: 'SET_SEARCH_QUERY', payload: query });
   };
 
-  const handleResultClick = (message) => {
-    setSearchQuery('');
-    setSearchResults([]);
-    if (onResultClick) {
-      onResultClick(message);
-    }
+  const clearSearch = () => {
+    handleSearch('');
+    setIsExpanded(false);
   };
 
   return (
-    <div className="search-messages">
-      <form onSubmit={handleSearch}>
-        <div className="search-input-wrapper">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search messages..."
-            className="search-input"
-          />
-          <button type="submit" className="search-button" title="Search messages">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18">
-              <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-            </svg>
-          </button>
-        </div>
-      </form>
-      
-      {isSearching && (
-        <div className="search-loading">
-          <div className="spinner"></div>
-          <span>Searching...</span>
-        </div>
-      )}
-      
-      {searchResults.length > 0 && (
-        <div className="search-results">
-          <div className="search-results-header">
-            Found {searchResults.length} results
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      padding: '8px 16px',
+      background: '#f8f9fa',
+      borderBottom: '1px solid #e9ecef'
+    }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        flex: isExpanded ? 1 : 'none',
+        transition: 'flex 0.2s ease'
+      }}>
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            padding: '8px',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#6c757d'
+          }}
+        >
+          <Search size={16} />
+        </button>
+        
+        {isExpanded && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            flex: 1,
+            position: 'relative'
+          }}>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              placeholder="Search messages..."
+              style={{
+                flex: 1,
+                padding: '8px 32px 8px 12px',
+                border: '1px solid #e9ecef',
+                borderRadius: '20px',
+                fontSize: '0.875rem',
+                outline: 'none'
+              }}
+              autoFocus
+            />
+            {searchQuery && (
+              <button
+                onClick={clearSearch}
+                style={{
+                  position: 'absolute',
+                  right: '8px',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: '#6c757d',
+                  padding: '4px'
+                }}
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
-          {searchResults.map(message => (
-            <div 
-              key={message.id} 
-              className="search-result" 
-              onClick={() => handleResultClick(message)}
-            >
-              <div className="search-result-sender">{message.sender}</div>
-              <div className="search-result-content">
-                {typeof message.message === 'string' ? (
-                  message.message.length > 50 ? `${message.message.substring(0, 50)}...` : message.message
-                ) : (
-                  message.message.text || `Shared: ${message.message.attachment.name}`
-                )}
-              </div>
-              <div className="search-result-time">
-                {new Date(message.timestamp).toLocaleTimeString()}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+        )}
+      </div>
       
-      {searchQuery.trim() && searchResults.length === 0 && !isSearching && (
-        <div className="no-search-results">
-          No messages found matching "{searchQuery}"
+      {searchQuery && !isExpanded && (
+        <div style={{
+          fontSize: '0.875rem',
+          color: '#6c757d',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          <span>Searching: "{searchQuery}"</span>
+          <button
+            onClick={clearSearch}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: '#6c757d',
+              padding: '4px'
+            }}
+          >
+            <X size={14} />
+          </button>
         </div>
       )}
     </div>

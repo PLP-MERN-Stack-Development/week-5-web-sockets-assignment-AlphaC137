@@ -1,272 +1,275 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useChat } from '../context/ChatContext';
+import { Send, Paperclip, Image, Smile } from 'lucide-react';
+import EmojiPicker from 'emoji-picker-react';
 
-function MessageInput({ onSendMessage, onTyping }) {
+function MessageInput({ onSendMessage, currentRoom, isPrivate = false, recipientName = '' }) {
+  const { socket, user } = useChat();
   const [message, setMessage] = useState('');
-  const [typingTimeout, setTypingTimeout] = useState(null);
   const [isTyping, setIsTyping] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [showFileUpload, setShowFileUpload] = useState(false);
-  const [file, setFile] = useState(null);
-  const [filePreview, setFilePreview] = useState(null);
-  const typingTimeoutRef = useRef(null);
-  const inputRef = useRef(null);
-  const emojiPickerRef = useRef(null);
-  const fileInputRef = useRef();
-
-  // Common emojis for quick access
-  const commonEmojis = ['😊', '😂', '👍', '❤️', '🎉', '🔥', '👋', '🙏', '😎', '🤔', '😢', '😍', '👏', '✅', '⭐'];
+  const [isUploading, setIsUploading] = useState(false);
   
+  const textareaRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
+
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (!message.trim()) return;
+
+    // Send message with acknowledgment
+    socket.emit('message', {
+      content: message,
+      roomId: currentRoom?.id,
+      type: 'text'
+    }, (response) => {
+      if (response.success) {
+        console.log('Message delivered:', response.messageId);
+      } else {
+        console.error('Message delivery failed:', response.error);
+      }
+    });
+
+    setMessage('');
+    handleStopTyping();
     
-    const trimmedMessage = message.trim();
-    
-    if (!trimmedMessage && !file) return;
-    
-    // Handle file upload
-    if (file) {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      
-      reader.onload = () => {
-        const fileMessage = {
-          text: trimmedMessage || `Shared a file: ${file.name}`,
-          attachment: {
-            name: file.name,
-            type: file.type,
-            data: reader.result,
-            size: file.size
-          }
-        };
-        
-        onSendMessage(fileMessage);
-        setMessage('');
-        setFile(null);
-        setFilePreview(null);
-        setShowFileUpload(false);
-      };
-    } else {
-      // Regular text message
-      onSendMessage(trimmedMessage);
-      setMessage('');
-    }
-    
-    // Stop typing indicator
-    if (isTyping) {
-      onTyping(false);
-      setIsTyping(false);
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
     }
   };
 
-  const handleChange = (e) => {
-    const value = e.target.value;
-    setMessage(value);
-    
-    // Handle typing indicator
-    if (!isTyping) {
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e);
+    }
+  };
+
+  const handleTyping = () => {
+    if (!isTyping && socket && !isPrivate) {
       setIsTyping(true);
-      onTyping(true);
+      socket.emit('typing', { roomId: currentRoom?.id });
     }
-    
-    // Reset typing timeout
-    if (typingTimeout) {
-      clearTimeout(typingTimeout);
+
+    // Clear existing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
     }
-    
-    const timeout = setTimeout(() => {
-      onTyping(false);
-      setIsTyping(false);
+
+    // Set new timeout
+    typingTimeoutRef.current = setTimeout(() => {
+      handleStopTyping();
     }, 2000);
-    
-    setTypingTimeout(timeout);
   };
-  
-  // Add emoji to message
-  const addEmoji = (emoji) => {
-    setMessage(prev => prev + emoji);
-    inputRef.current?.focus();
-  };
-  
-  const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0];
-    if (!selectedFile) return;
+
+  const handleStopTyping = () => {
+    if (isTyping && socket && !isPrivate) {
+      setIsTyping(false);
+      socket.emit('stop typing', { roomId: currentRoom?.id });
+    }
     
-    // Check file size (limit to 5MB)
-    if (selectedFile.size > 5 * 1024 * 1024) {
-      alert('File size exceeds 5MB limit');
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+  };
+
+  const handleInputChange = (e) => {
+    setMessage(e.target.value);
+    handleTyping();
+    
+    // Auto-resize textarea
+    const textarea = e.target;
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Check file size (5MB limit)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size must be less than 5MB');
       return;
     }
+
+    setIsUploading(true);
     
-    setFile(selectedFile);
-    
-    // Create preview for images
-    if (selectedFile.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setFilePreview(e.target.result);
-      };
-      reader.readAsDataURL(selectedFile);
-    }
-  };
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
 
-  const handleFileButtonClick = () => {
-    setShowFileUpload(!showFileUpload);
-    if (!showFileUpload) {
-      setTimeout(() => {
-        fileInputRef.current?.click();
-      }, 100);
-    }
-  };
+      const response = await fetch('http://localhost:8000/upload', {
+        method: 'POST',
+        body: formData,
+      });
 
-  const removeFile = () => {
-    setFile(null);
-    setFilePreview(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
-  // Handle clicking outside emoji picker
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target)) {
-        setShowEmojiPicker(false);
+      if (!response.ok) {
+        throw new Error('Upload failed');
       }
-    };
-    
-    document.addEventListener('mousedown', handleClickOutside);
+
+      const fileInfo = await response.json();
+      
+      // Send message with file
+      onSendMessage(
+        file.type.startsWith('image/') 
+          ? `📷 ${file.name}` 
+          : `📎 ${file.name}`,
+        'file',
+        fileInfo
+      );
+      
+    } catch (error) {
+      console.error('File upload error:', error);
+      alert('Failed to upload file. Please try again.');
+    } finally {
+      setIsUploading(false);
+      e.target.value = ''; // Clear input
+    }
+  };
+
+  const handleEmojiClick = (emojiData) => {
+    setMessage(prev => prev + emojiData.emoji);
+    setShowEmojiPicker(false);
+    textareaRef.current?.focus();
+  };
+
+  // Cleanup typing timeout on unmount
+  useEffect(() => {
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      handleStopTyping();
     };
   }, []);
 
-  // Clean up timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (typingTimeout) {
-        clearTimeout(typingTimeout);
-      }
-      if (isTyping) {
-        onTyping(false);
-      }
-    };
-  }, [typingTimeout, isTyping, onTyping]);
-  
+  const placeholder = isPrivate 
+    ? `Message ${recipientName}...`
+    : `Message ${currentRoom?.name || 'room'}...`;
+
   return (
-    <form className="message-input-container" onSubmit={handleSubmit}>
-      {filePreview && (
-        <div className="file-preview">
-          <img src={filePreview} alt="File preview" />
-          <button type="button" className="remove-file" onClick={removeFile}>
-            ×
-          </button>
-          <div className="file-name">{file?.name}</div>
+    <div style={{ position: 'relative' }}>
+      {/* Emoji Picker */}
+      {showEmojiPicker && (
+        <div style={{
+          position: 'absolute',
+          bottom: '100%',
+          right: '0',
+          zIndex: 10,
+          marginBottom: '8px'
+        }}>
+          <EmojiPicker
+            onEmojiClick={handleEmojiClick}
+            width={300}
+            height={300}
+          />
         </div>
       )}
-      
-      {file && !filePreview && (
-        <div className="file-info">
-          <div className="file-icon">📄</div>
-          <div className="file-details">
-            <div className="file-name">{file.name}</div>
-            <div className="file-size">{(file.size / 1024).toFixed(1)} KB</div>
+
+      <form onSubmit={handleSubmit}>
+        <div className="input-container">
+          {/* File Upload Button */}
+          <div className="file-upload">
+            <input
+              ref={fileInputRef}
+              type="file"
+              onChange={handleFileUpload}
+              accept="image/*,.pdf,.doc,.docx,.txt"
+              style={{ display: 'none' }}
+              disabled={isUploading}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              style={{
+                padding: '12px',
+                background: '#6c757d',
+                color: 'white',
+                border: 'none',
+                borderRadius: '50%',
+                cursor: isUploading ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'background-color 0.2s',
+                opacity: isUploading ? 0.6 : 1
+              }}
+              title="Upload file"
+            >
+              {isUploading ? (
+                <div style={{
+                  width: '16px',
+                  height: '16px',
+                  border: '2px solid #ffffff',
+                  borderTop: '2px solid transparent',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite'
+                }} />
+              ) : (
+                <Paperclip size={16} />
+              )}
+            </button>
           </div>
-          <button type="button" className="remove-file" onClick={removeFile}>
-            ×
-          </button>
-        </div>
-      )}
-      
-      <div className="message-input-wrapper">
-        <button 
-          type="button" 
-          className="file-button" 
-          onClick={handleFileButtonClick} 
-          title="Share a file or image"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/>
-          </svg>
-        </button>
-        
-        <input
-          ref={fileInputRef}
-          type="file"
-          style={{ display: 'none' }}
-          onChange={handleFileChange}
-          accept="image/*,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        />
-        
-        <button 
-          type="button" 
-          className="btn btn-icon" 
-          onClick={() => setShowEmojiPicker(prev => !prev)}
-          title="Add emoji"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5-6c.78 2.34 2.72 4 5 4s4.22-1.66 5-4H7zm7.5-5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5-1.5-.67-1.5-1.5.67-1.5 1.5-1.5zm-5 0c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5-1.5-.67-1.5-1.5.67-1.5 1.5-1.5z"/>
-          </svg>
-        </button>
-        
-        <div className="message-input-wrapper">
-          <input
-            type="text"
+
+          {/* Message Input */}
+          <textarea
+            ref={textareaRef}
             value={message}
-            onChange={handleChange}
-            placeholder="Type your message..."
-            className="form-control"
-            autoFocus
-            ref={inputRef}
-            onKeyDown={e => {
-              // Handle Ctrl+Enter to submit
-              if (e.key === 'Enter' && e.ctrlKey) {
-                e.preventDefault();
-                handleSubmit(e);
-              }
+            onChange={handleInputChange}
+            onKeyPress={handleKeyPress}
+            placeholder={placeholder}
+            className="message-input"
+            rows={1}
+            style={{
+              resize: 'none',
+              overflow: 'hidden'
             }}
           />
-          {isTyping && (
-            <div className="typing-badge">Typing...</div>
-          )}
+
+          {/* Emoji Button */}
+          <button
+            type="button"
+            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+            style={{
+              padding: '12px',
+              background: showEmojiPicker ? '#007bff' : '#6c757d',
+              color: 'white',
+              border: 'none',
+              borderRadius: '50%',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'background-color 0.2s'
+            }}
+            title="Add emoji"
+          >
+            <Smile size={16} />
+          </button>
+
+          {/* Send Button */}
+          <button
+            type="submit"
+            className="send-button"
+            disabled={!message.trim() || isUploading}
+          >
+            <Send size={16} />
+          </button>
         </div>
-        
-        <button 
-          type="submit" 
-          className="btn btn-primary" 
-          disabled={!message.trim() && !file}
-          title="Send message (Ctrl+Enter)"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
-            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-          </svg>
-          Send
-        </button>
-        
-        {/* Emoji picker */}
-        {showEmojiPicker && (
-          <div className="emoji-picker-container" ref={emojiPickerRef}>
-            <div className="emoji-picker-content">
-              {commonEmojis.map(emoji => (
-                <button 
-                  key={emoji}
-                  type="button" 
-                  className="emoji-btn" 
-                  onClick={() => addEmoji(emoji)}
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-      
-      {isTyping && (
-        <div className="typing-indicator">
-          <span className="typing-badge">Typing...</span>
-        </div>
-      )}
-    </form>
+      </form>
+
+      <style jsx>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
   );
 }
 
