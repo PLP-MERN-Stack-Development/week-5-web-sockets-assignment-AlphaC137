@@ -92,6 +92,20 @@ export const useSocket = (token) => {
     }
   };
 
+  // Mark message as delivered
+  const markMessageDelivered = (messageId) => {
+    if (socket && socket.connected) {
+      socket.emit('message_delivered', { messageId });
+    }
+  };
+
+  // Mark message as seen/read
+  const markMessageSeen = (messageId) => {
+    if (socket && socket.connected) {
+      socket.emit('message_seen', { messageId });
+    }
+  };
+
   // Socket event listeners
   useEffect(() => {
     if (!socket) return;
@@ -184,6 +198,49 @@ export const useSocket = (token) => {
       setConnectionError(error.message);
     };
 
+    // Auto delivery confirmation listener
+    const onAutoDeliveryConfirm = (data) => {
+      markMessageDelivered(data.messageId);
+    };
+
+    // Message delivery update listener
+    const onMessageDeliveryUpdate = (data) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === data.messageId
+            ? {
+                ...msg,
+                deliveryStatus: {
+                  delivered: data.delivered,
+                  deliveredAt: data.deliveredAt,
+                },
+              }
+            : msg
+        )
+      );
+    };
+
+    // Message read update listener
+    const onMessageReadUpdate = (data) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === data.messageId
+            ? {
+                ...msg,
+                deliveryStatus: {
+                  delivered: data.delivered,
+                  deliveredAt: data.deliveredAt,
+                },
+                readStatus: {
+                  read: data.read,
+                  readAt: data.readAt,
+                },
+              }
+            : msg
+        )
+      );
+    };
+
     // Register event listeners
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
@@ -197,6 +254,12 @@ export const useSocket = (token) => {
     socket.on('joined_room', onJoinedRoom);
     socket.on('typing_users', onTypingUsers);
     socket.on('error', onError);
+    socket.on('auto_delivery_confirm', onAutoDeliveryConfirm);
+    socket.on('message_delivery_update', onMessageDeliveryUpdate);
+    socket.on('message_read_update', onMessageReadUpdate);
+    socket.on('auto_delivery_confirm', onAutoDeliveryConfirm);
+    socket.on('message_delivery_update', onMessageDeliveryUpdate);
+    socket.on('message_read_update', onMessageReadUpdate);
 
     // Clean up event listeners
     return () => {
@@ -212,6 +275,9 @@ export const useSocket = (token) => {
       socket.off('joined_room', onJoinedRoom);
       socket.off('typing_users', onTypingUsers);
       socket.off('error', onError);
+      socket.off('auto_delivery_confirm', onAutoDeliveryConfirm);
+      socket.off('message_delivery_update', onMessageDeliveryUpdate);
+      socket.off('message_read_update', onMessageReadUpdate);
     };
   }, [currentRoom]);
 
@@ -231,7 +297,9 @@ export const useSocket = (token) => {
     sendMessage,
     sendPrivateMessage,
     setTyping,
+    markMessageDelivered,
+    markMessageSeen,
   };
 };
 
-export default { initializeSocket, getSocket, useSocket }; 
+export default { initializeSocket, getSocket, useSocket };
