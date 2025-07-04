@@ -127,6 +127,17 @@
   font-weight: 600;
 }
 
+.users-hint {
+  font-size: 0.75rem;
+  color: #6c757d;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem;
+  background: #f8f9fa;
+  border-radius: 6px;
+  text-align: center;
+  border-left: 3px solid #667eea;
+}
+
 .room-list {
   display: flex;
   flex-direction: column;
@@ -168,15 +179,26 @@
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
+  position: relative;
 }
 
 .user-item:hover {
   background: #e9ecef;
+  transform: translateX(2px);
 }
 
 .user-item.selected {
   background: #667eea;
   color: white;
+}
+
+.user-item.chatted-today {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e3f2fd 100%);
+  border: 1px solid #667eea;
+}
+
+.user-item.chatted-today.selected {
+  background: linear-gradient(135deg, #667eea 0%, #5a6fd8 100%);
 }
 
 .user-avatar {
@@ -208,6 +230,25 @@
 .username {
   flex: 1;
   font-size: 0.875rem;
+}
+
+.user-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.bro-indicator {
+  font-size: 0.75rem;
+  background: #ffd700;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: broGlow 2s infinite alternate;
 }
 
 .online-indicator {
@@ -245,6 +286,18 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
   animation: broGlow 2s infinite alternate;
+}
+
+.daily-bro-sent {
+  background: linear-gradient(135deg, #48bb78, #38a169);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 15px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-left: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .messages-container {

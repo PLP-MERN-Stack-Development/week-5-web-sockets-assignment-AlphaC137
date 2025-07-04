@@ -28,7 +28,59 @@ const Chat = () => {
   const [isPrivateMode, setIsPrivateMode] = useState(false);
   const [typingTimeout, setTypingTimeout] = useState(null);
   const [isBroMode, setIsBroMode] = useState(false);
+  const [dailyPrivateChats, setDailyPrivateChats] = useState(new Set());
   const messagesEndRef = useRef(null);
+
+  // Initialize daily private chats from localStorage
+  useEffect(() => {
+    const today = new Date().toDateString();
+    const storedChats = localStorage.getItem(`dailyPrivateChats-${today}`);
+    if (storedChats) {
+      setDailyPrivateChats(new Set(JSON.parse(storedChats)));
+    }
+
+    // Clean up old daily chat data and set up midnight reset
+    const cleanupOldData = () => {
+      // Remove data from previous days
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('dailyPrivateChats-') && !key.includes(today)) {
+          localStorage.removeItem(key);
+        }
+      });
+    };
+
+    cleanupOldData();
+
+    // Set up midnight reset
+    const now = new Date();
+    const midnight = new Date();
+    midnight.setHours(24, 0, 0, 0);
+    const msUntilMidnight = midnight.getTime() - now.getTime();
+
+    const midnightTimer = setTimeout(() => {
+      setDailyPrivateChats(new Set());
+      localStorage.removeItem(`dailyPrivateChats-${today}`);
+      
+      // Set up recurring daily reset
+      const dailyReset = setInterval(() => {
+        setDailyPrivateChats(new Set());
+        const currentDay = new Date().toDateString();
+        localStorage.removeItem(`dailyPrivateChats-${currentDay}`);
+      }, 24 * 60 * 60 * 1000); // 24 hours
+
+      return () => clearInterval(dailyReset);
+    }, msUntilMidnight);
+
+    return () => clearTimeout(midnightTimer);
+  }, []);
+
+  // Save daily chats to localStorage whenever it changes
+  useEffect(() => {
+    if (dailyPrivateChats.size > 0) {
+      const today = new Date().toDateString();
+      localStorage.setItem(`dailyPrivateChats-${today}`, JSON.stringify([...dailyPrivateChats]));
+    }
+  }, [dailyPrivateChats]);
 
   // Connect to socket when component mounts
   useEffect(() => {
@@ -101,6 +153,32 @@ const Chat = () => {
   const handlePrivateMessage = (user) => {
     setSelectedUser(user);
     setIsPrivateMode(true);
+    
+    // Get user ID (handle both id and _id fields)
+    const userId = user.id || user._id;
+    
+    // Check if this is the first private message of the day with this user
+    const today = new Date().toDateString();
+    const chatKey = `${userId}-${today}`;
+    
+    if (!dailyPrivateChats.has(chatKey)) {
+      // Add to daily chats set
+      setDailyPrivateChats(prev => new Set([...prev, chatKey]));
+      
+      // Send automatic "Bro" message after a short delay
+      setTimeout(() => {
+        sendPrivateMessage(userId, "Bro");
+        
+        // Add a local system message to show what happened
+        const broGreetingMessage = {
+          id: Date.now() + 1,
+          system: true,
+          content: `📱 Sent automatic daily greeting: "Bro" to ${user.username}`,
+          timestamp: new Date().toISOString(),
+        };
+        setMessages(prev => [...prev, broGreetingMessage]);
+      }, 500);
+    }
   };
 
   const formatTimestamp = (timestamp) => {
@@ -256,26 +334,37 @@ const Chat = () => {
           {/* Online Users */}
           <div className="users-section">
             <h3>Online Users ({users.length})</h3>
+            <p className="users-hint">💬 Click a user to start private chat</p>
             <div className="user-list">
-              {users.map((chatUser) => (
-                <div 
-                  key={chatUser.id || chatUser._id} 
-                  className={`user-item ${selectedUser?.id === chatUser.id ? 'selected' : ''}`}
-                  onClick={() => handlePrivateMessage(chatUser)}
-                >
-                  <div className="user-avatar">
-                    {chatUser.avatar ? (
-                      <img src={chatUser.avatar} alt={chatUser.username} />
-                    ) : (
-                      <div className="default-avatar">
-                        {chatUser.username.charAt(0).toUpperCase()}
-                      </div>
-                    )}
+              {users.map((chatUser) => {
+                const today = new Date().toDateString();
+                const chatKey = `${chatUser.id || chatUser._id}-${today}`;
+                const hasChattedToday = dailyPrivateChats.has(chatKey);
+                
+                return (
+                  <div 
+                    key={chatUser.id || chatUser._id} 
+                    className={`user-item ${selectedUser?.id === (chatUser.id || chatUser._id) ? 'selected' : ''} ${hasChattedToday ? 'chatted-today' : ''}`}
+                    onClick={() => handlePrivateMessage(chatUser)}
+                    title={hasChattedToday ? `Already said "Bro" to ${chatUser.username} today` : `Click to start private chat with ${chatUser.username}`}
+                  >
+                    <div className="user-avatar">
+                      {chatUser.avatar ? (
+                        <img src={chatUser.avatar} alt={chatUser.username} />
+                      ) : (
+                        <div className="default-avatar">
+                          {chatUser.username.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="user-info">
+                      <span className="username">{chatUser.username}</span>
+                      {hasChattedToday && <span className="bro-indicator">😎</span>}
+                    </div>
+                    <span className="online-indicator">🟢</span>
                   </div>
-                  <span className="username">{chatUser.username}</span>
-                  <span className="online-indicator">🟢</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </aside>
@@ -286,7 +375,18 @@ const Chat = () => {
           <div className="chat-room-header">
             <h3>
               {isPrivateMode 
-                ? `💬 Private chat with ${selectedUser?.username}` 
+                ? (
+                  <span>
+                    💬 Private chat with {selectedUser?.username}
+                    {(() => {
+                      const today = new Date().toDateString();
+                      const userId = selectedUser?.id || selectedUser?._id;
+                      const chatKey = `${userId}-${today}`;
+                      const hasChattedToday = dailyPrivateChats.has(chatKey);
+                      return hasChattedToday ? <span className="daily-bro-sent"> 😎 Daily Bro Sent</span> : null;
+                    })()}
+                  </span>
+                )
                 : `# ${currentRoom}`
               }
               {isBroMode && <span className="bro-mode-indicator"> 😎 BRO MODE</span>}
