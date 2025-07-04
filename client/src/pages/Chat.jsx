@@ -35,9 +35,14 @@ const Chat = () => {
   const [filePreview, setFilePreview] = useState(null);
   const [uploadError, setUploadError] = useState('');
   const [isChatVisible, setIsChatVisible] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [originalTitle] = useState(document.title);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const messageObserver = useRef(null);
+  const audioRef = useRef(null);
 
   // Initialize daily private chats from localStorage
   useEffect(() => {
@@ -108,6 +113,64 @@ const Chat = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Initialize notification permissions and settings
+  useEffect(() => {
+    // Request notification permissions
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().then(permission => {
+        setNotificationsEnabled(permission === 'granted');
+      });
+    } else if ('Notification' in window && Notification.permission === 'granted') {
+      setNotificationsEnabled(true);
+    }
+
+    // Load sound preference from localStorage
+    const savedSoundSetting = localStorage.getItem('soundEnabled');
+    if (savedSoundSetting !== null) {
+      setSoundEnabled(JSON.parse(savedSoundSetting));
+    }
+
+    // Create notification sound using Web Audio API
+    const createNotificationSound = () => {
+      audioRef.current = {
+        play: () => {
+          if (!soundEnabled) return Promise.resolve();
+          
+          try {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            // Create a pleasant notification tone
+            oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+            oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1);
+            
+            gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.3);
+            
+            return Promise.resolve();
+          } catch (error) {
+            console.log('Could not create notification sound:', error);
+            return Promise.reject(error);
+          }
+        }
+      };
+    };
+    
+    createNotificationSound();
+  }, []);
+
+  // Save sound preference to localStorage
+  useEffect(() => {
+    localStorage.setItem('soundEnabled', JSON.stringify(soundEnabled));
+  }, [soundEnabled]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -471,13 +534,23 @@ const Chat = () => {
     return displayMessage(message);
   };
 
-  // Track chat visibility for read receipts
+  // Track chat visibility for read receipts and notifications
   useEffect(() => {
     const handleVisibilityChange = () => {
-      setIsChatVisible(!document.hidden);
+      const isVisible = !document.hidden;
+      setIsChatVisible(isVisible);
+      
+      if (isVisible) {
+        // Clear unread count when tab becomes visible
+        setUnreadCount(0);
+      }
     };
 
-    const handleFocus = () => setIsChatVisible(true);
+    const handleFocus = () => {
+      setIsChatVisible(true);
+      setUnreadCount(0);
+    };
+    
     const handleBlur = () => setIsChatVisible(false);
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -510,6 +583,100 @@ const Chat = () => {
     });
   }, [messages, isChatVisible, user, markMessageSeen]);
 
+  // Show browser notification for new messages
+  const showNotification = (message) => {
+    if (!notificationsEnabled || isChatVisible) return;
+
+    const title = message.isPrivate 
+      ? `New private message from ${message.sender?.username}`
+      : `New message in #${message.room || currentRoom}`;
+    
+    const body = message.messageType === 'file' 
+      ? `📎 ${message.sender?.username} sent a file: ${message.content}`
+      : message.content;
+
+    const notification = new Notification(title, {
+      body: body.length > 100 ? body.substring(0, 100) + '...' : body,
+      icon: '/chat-icon.svg',
+      tag: 'chat-message',
+      requireInteraction: false,
+      silent: false
+    });
+
+    notification.onclick = () => {
+      window.focus();
+      notification.close();
+    };
+
+    // Auto-close notification after 5 seconds
+    setTimeout(() => notification.close(), 5000);
+  };
+
+  // Play notification sound
+  const playNotificationSound = () => {
+    if (soundEnabled && audioRef.current && !isChatVisible) {
+      audioRef.current.play().catch(e => console.log('Could not play notification sound:', e));
+    }
+  };
+
+  // Update tab title with unread count
+  const updateTabTitle = () => {
+    if (unreadCount > 0 && !isChatVisible) {
+      document.title = `(${unreadCount}) ${originalTitle}`;
+    } else {
+      document.title = originalTitle;
+    }
+  };
+
+  // Effect to handle notifications, sound, and title updates
+  useEffect(() => {
+    // Handle new message notifications
+    const handleNewMessage = (message) => {
+      // Show notification if enabled
+      showNotification(message);
+
+      // Play sound if enabled
+      playNotificationSound();
+
+      // Update unread count
+      setUnreadCount(prev => prev + 1);
+    };
+
+    // Subscribe to new message events
+    socket.on('new_message', handleNewMessage);
+
+    return () => {
+      // Unsubscribe from events on cleanup
+      socket.off('new_message', handleNewMessage);
+    };
+  }, [socket, notificationsEnabled, soundEnabled, isChatVisible]);
+
+  // Update tab title when unread count or visibility changes
+  useEffect(() => {
+    updateTabTitle();
+  }, [unreadCount, isChatVisible, originalTitle]);
+
+  // Handle new messages for notifications and unread count
+  useEffect(() => {
+    if (!messages.length) return;
+
+    const lastMessage = messages[messages.length - 1];
+    
+    // Only process messages from other users
+    if (lastMessage.sender?.id === user?.id || 
+        lastMessage.sender?.username === user?.username || 
+        lastMessage.system) {
+      return;
+    }
+
+    // If chat is not visible, increment unread count and show notification
+    if (!isChatVisible) {
+      setUnreadCount(prev => prev + 1);
+      showNotification(lastMessage);
+      playNotificationSound();
+    }
+  }, [messages, user, isChatVisible, notificationsEnabled, soundEnabled]);
+
   return (
     <div className={`chat-container ${isBroMode ? 'bro-mode' : ''}`}>
       {/* Header */}
@@ -524,6 +691,25 @@ const Chat = () => {
         </div>
         
         <div className="user-info">
+          {/* Notification Controls */}
+          <div className="notification-controls">
+            <button 
+              onClick={() => setNotificationsEnabled(!notificationsEnabled)}
+              className={`notification-btn ${notificationsEnabled ? 'active' : ''}`}
+              title={notificationsEnabled ? 'Disable notifications' : 'Enable notifications'}
+              disabled={!('Notification' in window) || Notification.permission === 'denied'}
+            >
+              {notificationsEnabled ? '🔔' : '🔕'}
+            </button>
+            <button 
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              className={`sound-btn ${soundEnabled ? 'active' : ''}`}
+              title={soundEnabled ? 'Disable message sounds' : 'Enable message sounds'}
+            >
+              {soundEnabled ? '🔊' : '🔇'}
+            </button>
+          </div>
+          
           <button 
             onClick={toggleBroMode} 
             className={`bro-mode-btn ${isBroMode ? 'active' : ''}`}
