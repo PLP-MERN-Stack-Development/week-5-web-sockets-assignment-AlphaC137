@@ -1,16 +1,16 @@
 // components/Register.jsx - Registration component
 import { useState } from 'react';
-import { authAPI } from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 
 const Register = ({ onRegister }) => {
+  const { register, isLoading } = useAuth();
   const [formData, setFormData] = useState({
     username: '',
     email: '',
     password: '',
     confirmPassword: ''
   });
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({});
+  const [localErrors, setLocalErrors] = useState({});
 
   const handleChange = (e) => {
     setFormData({
@@ -18,9 +18,9 @@ const Register = ({ onRegister }) => {
       [e.target.name]: e.target.value
     });
     // Clear specific error when user starts typing
-    if (errors[e.target.name]) {
-      setErrors({
-        ...errors,
+    if (localErrors[e.target.name]) {
+      setLocalErrors({
+        ...localErrors,
         [e.target.name]: ''
       });
     }
@@ -45,7 +45,7 @@ const Register = ({ onRegister }) => {
       newErrors.confirmPassword = 'Passwords do not match';
     }
 
-    setErrors(newErrors);
+    setLocalErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
@@ -56,12 +56,11 @@ const Register = ({ onRegister }) => {
       return;
     }
 
-    setLoading(true);
-    setErrors({});
+    setLocalErrors({});
 
     try {
       const { confirmPassword, ...registerData } = formData;
-      const result = await authAPI.register(registerData);
+      const result = await register(registerData);
       onRegister(result.user, result.token);
     } catch (error) {
       if (error.errors) {
@@ -69,12 +68,10 @@ const Register = ({ onRegister }) => {
         error.errors.forEach(err => {
           backendErrors[err.param] = err.msg;
         });
-        setErrors(backendErrors);
+        setLocalErrors(backendErrors);
       } else {
-        setErrors({ general: error.message || 'Registration failed' });
+        setLocalErrors({ general: error.message || 'Registration failed' });
       }
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -83,7 +80,7 @@ const Register = ({ onRegister }) => {
       <form onSubmit={handleSubmit} className="register-form">
         <h2>Register for Chat</h2>
         
-        {errors.general && <div className="error-message">{errors.general}</div>}
+        {localErrors.general && <div className="error-message">{localErrors.general}</div>}
         
         <div className="form-group">
           <input
@@ -94,7 +91,7 @@ const Register = ({ onRegister }) => {
             onChange={handleChange}
             required
           />
-          {errors.username && <span className="field-error">{errors.username}</span>}
+          {localErrors.username && <span className="field-error">{localErrors.username}</span>}
         </div>
         
         <div className="form-group">
@@ -106,7 +103,7 @@ const Register = ({ onRegister }) => {
             onChange={handleChange}
             required
           />
-          {errors.email && <span className="field-error">{errors.email}</span>}
+          {localErrors.email && <span className="field-error">{localErrors.email}</span>}
         </div>
         
         <div className="form-group">
@@ -118,7 +115,7 @@ const Register = ({ onRegister }) => {
             onChange={handleChange}
             required
           />
-          {errors.password && <span className="field-error">{errors.password}</span>}
+          {localErrors.password && <span className="field-error">{localErrors.password}</span>}
         </div>
         
         <div className="form-group">
@@ -130,11 +127,11 @@ const Register = ({ onRegister }) => {
             onChange={handleChange}
             required
           />
-          {errors.confirmPassword && <span className="field-error">{errors.confirmPassword}</span>}
+          {localErrors.confirmPassword && <span className="field-error">{localErrors.confirmPassword}</span>}
         </div>
         
-        <button type="submit" disabled={loading}>
-          {loading ? 'Registering...' : 'Register'}
+        <button type="submit" disabled={isLoading}>
+          {isLoading ? 'Registering...' : 'Register'}
         </button>
       </form>
     </div>

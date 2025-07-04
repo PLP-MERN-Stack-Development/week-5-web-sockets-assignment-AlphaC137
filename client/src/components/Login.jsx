@@ -1,34 +1,32 @@
 // components/Login.jsx - Login component
 import { useState } from 'react';
-import { authAPI } from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 
 const Login = ({ onLogin }) => {
+  const { login, isLoading } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [localError, setLocalError] = useState('');
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
     });
+    setLocalError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
+    setLocalError('');
 
     try {
-      const result = await authAPI.login(formData);
+      const result = await login(formData);
       onLogin(result.user, result.token);
     } catch (error) {
-      setError(error.message || 'Login failed');
-    } finally {
-      setLoading(false);
+      setLocalError(error.message || 'Login failed');
     }
   };
 
@@ -37,7 +35,7 @@ const Login = ({ onLogin }) => {
       <form onSubmit={handleSubmit} className="login-form">
         <h2>Login to Chat</h2>
         
-        {error && <div className="error-message">{error}</div>}
+        {localError && <div className="error-message">{localError}</div>}
         
         <div className="form-group">
           <input
@@ -61,8 +59,8 @@ const Login = ({ onLogin }) => {
           />
         </div>
         
-        <button type="submit" disabled={loading}>
-          {loading ? 'Logging in...' : 'Login'}
+        <button type="submit" disabled={isLoading}>
+          {isLoading ? 'Logging in...' : 'Login'}
         </button>
       </form>
     </div>

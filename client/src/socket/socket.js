@@ -220,6 +220,7 @@ export const useSocket = (token) => {
     isConnected,
     lastMessage,
     messages,
+    setMessages,
     users,
     typingUsers,
     currentRoom,
