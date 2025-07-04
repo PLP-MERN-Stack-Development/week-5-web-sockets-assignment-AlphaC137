@@ -31,6 +31,24 @@ const messageSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  deliveryStatus: {
+    delivered: {
+      type: Boolean,
+      default: false
+    },
+    deliveredAt: {
+      type: Date
+    }
+  },
+  readStatus: {
+    read: {
+      type: Boolean,
+      default: false
+    },
+    readAt: {
+      type: Date
+    }
+  },
   readBy: [{
     user: {
       type: mongoose.Schema.Types.ObjectId,
