@@ -91,11 +91,20 @@ const setupSocketEvents = (io) => {
           room: message.room,
           messageType: message.messageType,
           timestamp: message.createdAt,
-          reactions: message.reactions
+          reactions: message.reactions,
+          deliveryStatus: message.deliveryStatus,
+          readStatus: message.readStatus
         };
 
         // Broadcast to room with username and timestamp
         io.to(messageData.room || 'general').emit('chat message', messageResponse);
+        
+        // Auto-emit delivery confirmation for recipients
+        setTimeout(() => {
+          socket.broadcast.to(messageData.room || 'general').emit('auto_delivery_confirm', {
+            messageId: message._id
+          });
+        }, 100);
         
       } catch (error) {
         console.error('Error sending message:', error);
@@ -201,13 +210,22 @@ const setupSocketEvents = (io) => {
           sender: privateMessage.sender,
           recipient: privateMessage.recipient,
           timestamp: privateMessage.createdAt,
-          isPrivate: true
+          isPrivate: true,
+          deliveryStatus: privateMessage.deliveryStatus,
+          readStatus: privateMessage.readStatus
         };
 
         // Send to recipient if online
         const recipientConnection = connectedUsers.get(to);
         if (recipientConnection) {
           io.to(recipientConnection.socketId).emit('private_message', messageData);
+          
+          // Auto-emit delivery confirmation
+          setTimeout(() => {
+            io.to(recipientConnection.socketId).emit('auto_delivery_confirm', {
+              messageId: privateMessage._id
+            });
+          }, 100);
         }
         
         // Send back to sender
@@ -313,6 +331,65 @@ const setupSocketEvents = (io) => {
       } catch (error) {
         console.error('Error sending private file:', error);
         socket.emit('error', { message: 'Failed to send private file' });
+      }
+    });
+
+    // Handle message delivery confirmation
+    socket.on('message_delivered', async ({ messageId }) => {
+      try {
+        const message = await Message.findById(messageId);
+        if (!message) return;
+
+        // Update delivery status
+        message.deliveryStatus.delivered = true;
+        message.deliveryStatus.deliveredAt = new Date();
+        await message.save();
+
+        // Notify sender about delivery
+        const senderConnection = connectedUsers.get(message.sender.toString());
+        if (senderConnection) {
+          io.to(senderConnection.socketId).emit('message_delivery_update', {
+            messageId: message._id,
+            delivered: true,
+            deliveredAt: message.deliveryStatus.deliveredAt
+          });
+        }
+      } catch (error) {
+        console.error('Error updating delivery status:', error);
+      }
+    });
+
+    // Handle message read confirmation
+    socket.on('message_seen', async ({ messageId }) => {
+      try {
+        const message = await Message.findById(messageId);
+        if (!message) return;
+
+        // Update read status
+        message.readStatus.read = true;
+        message.readStatus.readAt = new Date();
+        
+        // Also mark as delivered if not already
+        if (!message.deliveryStatus.delivered) {
+          message.deliveryStatus.delivered = true;
+          message.deliveryStatus.deliveredAt = new Date();
+        }
+        
+        await message.save();
+
+        // Notify sender about read status
+        const senderConnection = connectedUsers.get(message.sender.toString());
+        if (senderConnection) {
+          io.to(senderConnection.socketId).emit('message_read_update', {
+            messageId: message._id,
+            read: true,
+            readAt: message.readStatus.readAt,
+            delivered: true,
+            deliveredAt: message.deliveryStatus.deliveredAt
+          });
+        }
+      } catch (error) {
+        console.error('Error updating read status:', error);
       }
     });
 
