@@ -57,7 +57,13 @@ const messageSchema = new mongoose.Schema({
       type: String,
       required: true
     }
-  }]
+  }],
+  fileData: {
+    name: String,
+    type: String,
+    size: Number,
+    data: String // Base64 encoded file data
+  }
 }, {
   timestamps: true
 });
