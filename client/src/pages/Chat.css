@@ -464,6 +464,33 @@
   align-items: flex-end;
 }
 
+.file-input-btn {
+  background: #667eea;
+  color: white;
+  border: none;
+  padding: 0.75rem;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 1.2rem;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.file-input-btn:hover:not(:disabled) {
+  background: #5a6fd8;
+  transform: scale(1.1);
+}
+
+.file-input-btn:disabled {
+  background: #adb5bd;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .message-input {
   flex: 1;
   padding: 0.75rem;
@@ -499,6 +526,234 @@
   cursor: not-allowed;
 }
 
+/* File Upload Styles */
+.file-preview-section {
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.file-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  font-weight: 500;
+  color: #495057;
+}
+
+.clear-file-btn {
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.3s ease;
+}
+
+.clear-file-btn:hover {
+  background: #c82333;
+}
+
+.file-preview-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.image-preview-small {
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #e0e0e0;
+}
+
+.image-preview-small img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.file-icon-preview {
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e9ecef;
+  border-radius: 8px;
+  font-size: 24px;
+  border: 1px solid #e0e0e0;
+}
+
+.file-details-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.file-name {
+  font-weight: 500;
+  color: #212529;
+  word-break: break-all;
+}
+
+.file-size {
+  font-size: 0.875rem;
+  color: #6c757d;
+}
+
+.file-type {
+  font-size: 0.75rem;
+  color: #868e96;
+}
+
+.send-file-btn {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: background-color 0.3s ease;
+}
+
+.send-file-btn:hover:not(:disabled) {
+  background: #218838;
+}
+
+.send-file-btn:disabled {
+  background: #adb5bd;
+  cursor: not-allowed;
+}
+
+.upload-error {
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+  border-radius: 4px;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+}
+
+.file-input-btn {
+  background: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 20px;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.3s ease;
+  margin-right: 0.5rem;
+}
+
+.file-input-btn:hover:not(:disabled) {
+  background: #5a6268;
+}
+
+.file-input-btn:disabled {
+  background: #adb5bd;
+  cursor: not-allowed;
+}
+
+/* File Message Styles */
+.file-message {
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 0.5rem 0;
+  max-width: 300px;
+}
+
+.file-message-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  font-weight: 500;
+  color: #495057;
+}
+
+.file-message-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.file-message-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e9ecef;
+  border-radius: 8px;
+  font-size: 20px;
+}
+
+.file-message-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.file-message-name {
+  font-weight: 500;
+  color: #212529;
+  word-break: break-all;
+  font-size: 0.875rem;
+}
+
+.file-message-size {
+  font-size: 0.75rem;
+  color: #6c757d;
+}
+
+.file-message-actions {
+  margin-top: 0.75rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.download-file-btn {
+  background: #17a2b8;
+  color: white;
+  border: none;
+  padding: 0.375rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: background-color 0.3s ease;
+}
+
+.download-file-btn:hover {
+  background: #138496;
+}
+
+.image-preview {
+  width: 100%;
+  max-width: 200px;
+  border-radius: 8px;
+  margin-top: 0.5rem;
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
   .chat-sidebar {
@@ -520,5 +775,19 @@
   
   .message {
     max-width: 85%;
+  }
+  
+  .file-preview-content {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .file-message {
+    max-width: 100%;
+  }
+  
+  .file-message-content {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
