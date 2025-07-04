@@ -20,7 +20,9 @@ const Chat = () => {
     joinRoom,
     sendMessage,
     sendPrivateMessage,
-    setTyping
+    setTyping,
+    markMessageDelivered,
+    markMessageSeen
   } = useSocket(localStorage.getItem('token'));
 
   const [messageInput, setMessageInput] = useState('');
@@ -32,8 +34,10 @@ const Chat = () => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
   const [uploadError, setUploadError] = useState('');
+  const [isChatVisible, setIsChatVisible] = useState(true);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const messageObserver = useRef(null);
 
   // Initialize daily private chats from localStorage
   useEffect(() => {
@@ -392,6 +396,38 @@ const Chat = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  const renderMessageStatus = (message) => {
+    // Only show status for own messages
+    if (message.sender?.id !== user?.id && message.sender?.username !== user?.username) {
+      return null;
+    }
+
+    // Don't show status for system messages
+    if (message.system) {
+      return null;
+    }
+
+    const { deliveryStatus, readStatus } = message;
+
+    return (
+      <div className="message-status">
+        {readStatus?.read ? (
+          <span className="read-receipt" title={`Read at ${new Date(readStatus.readAt).toLocaleTimeString()}`}>
+            ✓✓
+          </span>
+        ) : deliveryStatus?.delivered ? (
+          <span className="delivery-receipt" title={`Delivered at ${new Date(deliveryStatus.deliveredAt).toLocaleTimeString()}`}>
+            ✓
+          </span>
+        ) : (
+          <span className="sending" title="Sending...">
+            ⏳
+          </span>
+        )}
+      </div>
+    );
+  };
+
   const renderMessage = (message) => {
     if (message.messageType === 'file' || message.type === 'file') {
       const fileData = message.fileData;
@@ -434,6 +470,45 @@ const Chat = () => {
     
     return displayMessage(message);
   };
+
+  // Track chat visibility for read receipts
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      setIsChatVisible(!document.hidden);
+    };
+
+    const handleFocus = () => setIsChatVisible(true);
+    const handleBlur = () => setIsChatVisible(false);
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
+
+  // Mark messages as seen when they become visible
+  useEffect(() => {
+    if (!isChatVisible || !messages.length) return;
+
+    const unseenMessages = messages.filter(
+      (msg) =>
+        msg.sender?.id !== user?.id &&
+        msg.sender?.username !== user?.username &&
+        !msg.system &&
+        !msg.readStatus?.read
+    );
+
+    unseenMessages.forEach((msg) => {
+      if (msg.id) {
+        markMessageSeen(msg.id);
+      }
+    });
+  }, [messages, isChatVisible, user, markMessageSeen]);
 
   return (
     <div className={`chat-container ${isBroMode ? 'bro-mode' : ''}`}>
@@ -592,6 +667,7 @@ const Chat = () => {
                       ))}
                     </div>
                   )}
+                  {renderMessageStatus(message)}
                 </div>
               ))}
               
