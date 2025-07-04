@@ -29,7 +29,11 @@ const Chat = () => {
   const [typingTimeout, setTypingTimeout] = useState(null);
   const [isBroMode, setIsBroMode] = useState(false);
   const [dailyPrivateChats, setDailyPrivateChats] = useState(new Set());
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [filePreview, setFilePreview] = useState(null);
+  const [uploadError, setUploadError] = useState('');
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   // Initialize daily private chats from localStorage
   useEffect(() => {
@@ -108,10 +112,17 @@ const Chat = () => {
   const handleSendMessage = (e) => {
     e.preventDefault();
     
+    // If there's a file selected, send it
+    if (selectedFile) {
+      sendFile();
+      return;
+    }
+    
+    // If there's text, send it
     if (!messageInput.trim()) return;
 
     if (isPrivateMode && selectedUser) {
-      sendPrivateMessage(selectedUser.id, messageInput.trim());
+      sendPrivateMessage(selectedUser.id || selectedUser._id, messageInput.trim());
     } else {
       sendMessage(messageInput.trim(), currentRoom);
     }
@@ -275,6 +286,155 @@ const Chat = () => {
     return message.content;
   };
 
+  // File handling functions
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Check file size (5MB limit)
+    const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+    if (file.size > maxSize) {
+      setUploadError(`File size exceeds 5MB limit. Selected file is ${(file.size / 1024 / 1024).toFixed(2)}MB`);
+      return;
+    }
+
+    setUploadError('');
+    setSelectedFile(file);
+
+    // Create preview for images
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setFilePreview(e.target.result);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setFilePreview(null);
+    }
+  };
+
+  const convertFileToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const sendFile = async () => {
+    if (!selectedFile) return;
+
+    try {
+      const base64 = await convertFileToBase64(selectedFile);
+      
+      const fileMessage = {
+        message: selectedFile.name,
+        type: 'file',
+        fileData: {
+          name: selectedFile.name,
+          type: selectedFile.type,
+          size: selectedFile.size,
+          data: base64
+        }
+      };
+
+      if (isPrivateMode && selectedUser) {
+        // Send file via private message
+        socket.emit('private_file', {
+          to: selectedUser.id || selectedUser._id,
+          fileData: fileMessage.fileData
+        });
+      } else {
+        // Send file to room
+        socket.emit('send_file', {
+          room: currentRoom,
+          fileData: fileMessage.fileData
+        });
+      }
+
+      // Clear file selection
+      clearFileSelection();
+      
+    } catch (error) {
+      console.error('Error sending file:', error);
+      setUploadError('Failed to send file. Please try again.');
+    }
+  };
+
+  const clearFileSelection = () => {
+    setSelectedFile(null);
+    setFilePreview(null);
+    setUploadError('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const downloadFile = (fileData) => {
+    try {
+      const link = document.createElement('a');
+      link.href = fileData.data;
+      link.download = fileData.name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Error downloading file:', error);
+    }
+  };
+
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const renderMessage = (message) => {
+    if (message.messageType === 'file' || message.type === 'file') {
+      const fileData = message.fileData;
+      const isImage = fileData?.type?.startsWith('image/');
+      
+      return (
+        <div className="file-message">
+          {isImage ? (
+            <div className="image-preview">
+              <img 
+                src={fileData.data} 
+                alt={fileData.name}
+                className="message-image"
+                onClick={() => window.open(fileData.data, '_blank')}
+              />
+              <div className="file-info">
+                <span className="file-name">{fileData.name}</span>
+                <span className="file-size">{formatFileSize(fileData.size)}</span>
+              </div>
+            </div>
+          ) : (
+            <div className="file-attachment">
+              <div className="file-icon">📎</div>
+              <div className="file-details">
+                <span className="file-name">{fileData.name}</span>
+                <span className="file-size">{formatFileSize(fileData.size)}</span>
+              </div>
+              <button 
+                className="download-btn"
+                onClick={() => downloadFile(fileData)}
+                title="Download file"
+              >
+                ⬇️
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
+    
+    return displayMessage(message);
+  };
+
   return (
     <div className={`chat-container ${isBroMode ? 'bro-mode' : ''}`}>
       {/* Header */}
@@ -421,7 +581,7 @@ const Chat = () => {
                     </div>
                   )}
                   <div className="message-content">
-                    {displayMessage(message)}
+                    {renderMessage(message)}
                   </div>
                   {message.reactions && message.reactions.length > 0 && (
                     <div className="message-reactions">
@@ -458,15 +618,86 @@ const Chat = () => {
 
           {/* Message Input */}
           <form onSubmit={handleSendMessage} className="message-form">
+            {/* File Preview Section */}
+            {selectedFile && (
+              <div className="file-preview-section">
+                <div className="file-preview-header">
+                  <span>📎 File to send:</span>
+                  <button 
+                    type="button" 
+                    onClick={clearFileSelection}
+                    className="clear-file-btn"
+                    title="Remove file"
+                  >
+                    ✕
+                  </button>
+                </div>
+                
+                <div className="file-preview-content">
+                  {filePreview ? (
+                    <div className="image-preview-small">
+                      <img src={filePreview} alt={selectedFile.name} />
+                    </div>
+                  ) : (
+                    <div className="file-icon-preview">📎</div>
+                  )}
+                  
+                  <div className="file-details-preview">
+                    <span className="file-name">{selectedFile.name}</span>
+                    <span className="file-size">{formatFileSize(selectedFile.size)}</span>
+                    <span className="file-type">{selectedFile.type || 'Unknown type'}</span>
+                  </div>
+                </div>
+                
+                <button 
+                  type="button" 
+                  onClick={sendFile}
+                  className="send-file-btn"
+                  disabled={!isConnected}
+                >
+                  Send File
+                </button>
+              </div>
+            )}
+
+            {/* Upload Error */}
+            {uploadError && (
+              <div className="upload-error">
+                ⚠️ {uploadError}
+              </div>
+            )}
+
             <div className="message-input-container">
+              {/* File Input Button */}
+              <button 
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="file-input-btn"
+                title="Attach file (Max 5MB)"
+                disabled={!isConnected}
+              >
+                📎
+              </button>
+              
+              {/* Hidden File Input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                onChange={handleFileSelect}
+                style={{ display: 'none' }}
+                accept="*/*"
+              />
+
               <input
                 type="text"
                 value={messageInput}
                 onChange={handleTyping}
                 placeholder={
-                  isPrivateMode 
-                    ? `Send a private message to ${selectedUser?.username}...`
-                    : `Type a message in #${currentRoom}...`
+                  selectedFile 
+                    ? `Send "${selectedFile.name}" or type a message...`
+                    : isPrivateMode 
+                      ? `Send a private message to ${selectedUser?.username}...`
+                      : `Type a message in #${currentRoom}...`
                 }
                 className="message-input"
                 disabled={!isConnected}
@@ -474,7 +705,7 @@ const Chat = () => {
               <button 
                 type="submit" 
                 className="send-button"
-                disabled={!isConnected || !messageInput.trim()}
+                disabled={!isConnected || (!messageInput.trim() && !selectedFile)}
               >
                 Send
               </button>
