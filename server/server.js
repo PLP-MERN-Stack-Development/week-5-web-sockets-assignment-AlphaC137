@@ -51,7 +51,7 @@ const { connectedUsers, typingUsers } = setupSocketEvents(io);
 app.get('/api/health', (req, res) => {
   res.json({ 
     success: true, 
-    message: 'Socket.io Chat Server is running',
+    message: 'Broz Chat Server is running',
     timestamp: new Date().toISOString()
   });
 });
@@ -59,7 +59,7 @@ app.get('/api/health', (req, res) => {
 // Root route
 app.get('/', (req, res) => {
   res.send(`
-    <h1>Socket.io Chat Server</h1>
+    <h1>BroZ Chat Server</h1>
     <p>Server is running and ready for connections.</p>
     <p>API endpoints:</p>
     <ul>
