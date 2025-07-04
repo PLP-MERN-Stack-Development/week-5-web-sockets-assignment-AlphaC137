@@ -754,6 +754,76 @@
   margin-top: 0.5rem;
 }
 
+/* Message Status Indicators */
+.message-status {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+}
+
+.delivery-receipt {
+  color: #6c757d;
+  font-weight: bold;
+}
+
+.read-receipt {
+  color: #007bff;
+  font-weight: bold;
+}
+
+.sending {
+  color: #ffc107;
+  font-size: 0.8rem;
+}
+
+.own-message .message-status {
+  justify-content: flex-end;
+}
+
+.message-status span {
+  cursor: help;
+}
+
+/* Update message styles to accommodate status */
+.message {
+  position: relative;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  max-width: 70%;
+  word-wrap: break-word;
+}
+
+.own-message {
+  align-self: flex-end;
+  background: #007bff;
+  color: white;
+  margin-left: auto;
+}
+
+.own-message .message-status {
+  margin-top: 0.5rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.message:not(.own-message) {
+  background: #f8f9fa;
+  color: #333;
+  align-self: flex-start;
+}
+
+.system-message {
+  align-self: center;
+  background: #e9ecef;
+  color: #6c757d;
+  font-style: italic;
+  text-align: center;
+  max-width: 90%;
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
   .chat-sidebar {
@@ -789,5 +859,9 @@
   .file-message-content {
     flex-direction: column;
     align-items: flex-start;
+  }
+  
+  .message-status {
+    font-size: 0.7rem;
   }
 }
