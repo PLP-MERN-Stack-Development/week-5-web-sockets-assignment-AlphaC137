@@ -219,6 +219,103 @@ const setupSocketEvents = (io) => {
       }
     });
 
+    // Handle file uploads to rooms
+    socket.on('send_file', async ({ room, fileData }) => {
+      try {
+        const message = new Message({
+          sender: socket.user.id,
+          content: fileData.name,
+          room: room || 'general',
+          messageType: 'file',
+          fileData: {
+            name: fileData.name,
+            type: fileData.type,
+            size: fileData.size,
+            data: fileData.data
+          }
+        });
+
+        await message.save();
+        
+        // Populate sender information
+        await message.populate('sender', 'username avatar');
+
+        const messageResponse = {
+          id: message._id,
+          content: message.content,
+          sender: {
+            id: message.sender._id,
+            username: message.sender.username,
+            avatar: message.sender.avatar
+          },
+          room: message.room,
+          messageType: 'file',
+          fileData: message.fileData,
+          timestamp: message.createdAt,
+          reactions: message.reactions
+        };
+
+        // Broadcast file to room
+        io.to(room || 'general').emit('chat message', messageResponse);
+        
+      } catch (error) {
+        console.error('Error sending file:', error);
+        socket.emit('error', { message: 'Failed to send file' });
+      }
+    });
+
+    // Handle private file sharing
+    socket.on('private_file', async ({ to, fileData }) => {
+      try {
+        const recipient = await User.findById(to);
+        if (!recipient) {
+          socket.emit('error', { message: 'Recipient not found' });
+          return;
+        }
+
+        const privateMessage = new Message({
+          sender: socket.user.id,
+          recipient: to,
+          content: fileData.name,
+          isPrivate: true,
+          messageType: 'file',
+          fileData: {
+            name: fileData.name,
+            type: fileData.type,
+            size: fileData.size,
+            data: fileData.data
+          }
+        });
+
+        await privateMessage.save();
+        await privateMessage.populate(['sender', 'recipient'], 'username avatar');
+
+        const messageData = {
+          id: privateMessage._id,
+          content: privateMessage.content,
+          sender: privateMessage.sender,
+          recipient: privateMessage.recipient,
+          messageType: 'file',
+          fileData: privateMessage.fileData,
+          timestamp: privateMessage.createdAt,
+          isPrivate: true
+        };
+
+        // Send to recipient if online
+        const recipientConnection = connectedUsers.get(to);
+        if (recipientConnection) {
+          io.to(recipientConnection.socketId).emit('private_message', messageData);
+        }
+        
+        // Send back to sender
+        socket.emit('private_message', messageData);
+        
+      } catch (error) {
+        console.error('Error sending private file:', error);
+        socket.emit('error', { message: 'Failed to send private file' });
+      }
+    });
+
     // ✅ On disconnect: update user status
     socket.on('disconnect', async () => {
       try {
