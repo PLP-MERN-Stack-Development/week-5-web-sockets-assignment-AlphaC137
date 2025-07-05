@@ -106,8 +106,12 @@ const Chat = () => {
       if (socket) {
         disconnect();
       }
+      // Clear typing timeout if it exists
+      if (typingTimeout) {
+        clearTimeout(typingTimeout);
+      }
     };
-  }, [socket, isConnected, connect, disconnect]);
+  }, [socket, isConnected, connect, disconnect, typingTimeout]);
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
