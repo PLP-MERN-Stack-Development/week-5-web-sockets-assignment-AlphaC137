@@ -257,9 +257,6 @@ export const useSocket = (token) => {
     socket.on('auto_delivery_confirm', onAutoDeliveryConfirm);
     socket.on('message_delivery_update', onMessageDeliveryUpdate);
     socket.on('message_read_update', onMessageReadUpdate);
-    socket.on('auto_delivery_confirm', onAutoDeliveryConfirm);
-    socket.on('message_delivery_update', onMessageDeliveryUpdate);
-    socket.on('message_read_update', onMessageReadUpdate);
 
     // Clean up event listeners
     return () => {
